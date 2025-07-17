@@ -1,0 +1,35 @@
+version: "3.8"
+
+services:
+  pitch-analyzer:
+    build: .
+    ports:
+      - "8002:8000"
+    environment:
+      OPENAI_API_KEY: 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
+      POSTGRES_URL: postgresql://user:password@postgres:5432/pitchdb
+    depends_on:
+      - postgres
+      - qdrant
+
+  postgres:
+    image: postgres:14
+    environment:
+      POSTGRES_DB: pitchdb
+      POSTGRES_USER: user
+      POSTGRES_PASSWORD: password
+    ports:
+      - "5434:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+
+  qdrant:
+    image: qdrant/qdrant
+    ports:
+      - "6334:6334"
+    volumes:
+      - qdrantdata:/qdrant/storage
+
+volumes:
+  pgdata:
+  qdrantdata:

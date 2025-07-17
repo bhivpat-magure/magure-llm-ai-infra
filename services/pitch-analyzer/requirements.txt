@@ -1,0 +1,13 @@
+PyMuPDF
+fastapi
+uvicorn
+sqlalchemy
+psycopg2-binary
+openai>1.0.0
+python-pptx
+PyPDF2
+pdf2image
+pytesseract
+Pillow
+qdrant-client
+python-multipart
