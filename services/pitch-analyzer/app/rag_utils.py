@@ -1,7 +1,7 @@
 import os
 import uuid
 from PyPDF2 import PdfReader
-from pptx import Presentation
+#from pptx import Presentation
 from pdf2image import convert_from_path
 from PIL import Image
 import pytesseract
@@ -18,9 +18,11 @@ def extract_text(path: str) -> str:
     if path.endswith(".pdf"):
         reader = PdfReader(path)
         return "\n".join([page.extract_text() or "" for page in reader.pages])
+    '''
     elif path.endswith(".pptx"):
         prs = Presentation(path)
         return "\n".join([shape.text for slide in prs.slides for shape in slide.shapes if hasattr(shape, "text")])
+        '''
     return ""
 
 def extract_with_ocr(path: str) -> str:

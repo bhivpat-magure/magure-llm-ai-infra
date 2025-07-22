@@ -1,35 +1,33 @@
-version: "3.8"
+version: "3.9"
 
 services:
-  pitch-analyzer:
+  web:
     build: .
-    ports:
-      - "8002:8000"
+    container_name: pitch_api
     environment:
-      OPENAI_API_KEY: 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
-      POSTGRES_URL: postgresql://user:password@postgres:5432/pitchdb
+      - OPENAI_API_KEY=${OPENAI_API_KEY}
+    ports:
+      - "8000:8000"
     depends_on:
-      - postgres
-      - qdrant
+      - redis
+    volumes:
+      - .:/app
 
-  postgres:
-    image: postgres:14
+  celery:
+    build: .
+    container_name: pitch_worker
+    command: celery -A app.tasks worker --loglevel=info
     environment:
-      POSTGRES_DB: pitchdb
-      POSTGRES_USER: user
-      POSTGRES_PASSWORD: password
-    ports:
-      - "5434:5432"
+      - OPENAI_API_KEY=${OPENAI_API_KEY}
+    depends_on:
+      - redis
     volumes:
-      - pgdata:/var/lib/postgresql/data
+      - .:/app
 
-  qdrant:
-    image: qdrant/qdrant
+  redis:
+    image: redis:6.2
+    container_name: redis
+    environment:
+      - OPENAI_API_KEY=${OPENAI_API_KEY}
     ports:
-      - "6334:6334"
-    volumes:
-      - qdrantdata:/qdrant/storage
-
-volumes:
-  pgdata:
-  qdrantdata:
+      - "6379:6379"
