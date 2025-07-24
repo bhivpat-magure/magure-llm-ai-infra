@@ -9,7 +9,7 @@ import os
 
 celery_app = Celery("worker", broker='redis://redis:6379/0', backend='redis://redis:6379/0')
 
-@celery_app.task(name="app.tasks.process_pitch")
+@celery_app.task(name="app.pitchtasks.process_pitch")
 def process_pitch(pitch_id: str, file_path: str):
     db = SessionLocal()
     try:

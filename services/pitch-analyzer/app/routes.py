@@ -46,7 +46,7 @@ async def analyze_pitches(files: List[UploadFile] = File(...)):
             db.add(pitch)
             db.commit()
 
-            celery.send_task("app.tasks.process_pitch", args=[pitch_id, saved_path])
+            celery.send_task("app.pitchtasks.process_pitch", args=[pitch_id, saved_path])
             results.append({"filename": filename, "pitch_id": pitch_id, "status": "queued"})
 
         except SQLAlchemyError as e:

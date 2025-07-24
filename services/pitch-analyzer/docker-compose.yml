@@ -16,7 +16,7 @@ services:
   celery:
     build: .
     container_name: pitch_worker
-    command: celery -A app.tasks worker --loglevel=info
+    command: celery -A app.pitchtasks worker --loglevel=info
     environment:
       - OPENAI_API_KEY=${OPENAI_API_KEY}
     depends_on:

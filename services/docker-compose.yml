@@ -1,0 +1,66 @@
+version: "3.9"
+
+services:
+  redis:
+    image: redis:6.2
+    container_name: shared_redis
+    ports:
+      - "6379:6379"
+
+  # ───── Flask API ─────
+  flask_web:
+    build:
+      context: ./magure_ai_resume
+    container_name: flask_web
+    command: python run.py
+    environment:
+      - OPENAI_API_KEY=${OPENAI_API_KEY}
+    ports:
+      - "5001:5001"
+    depends_on:
+      - redis
+    volumes:
+      - ./magure_ai_resume:/app
+
+  flask_celery:
+    build:
+      context: ./magure_ai_resume
+    container_name: flask_celery
+    #command: celery -A app.celery_app worker --loglevel=info --pool=solo
+    #command: celery -A celery_worker.celery worker --loglevel=info --pool=solo
+    command: celery -A celery_worker worker --loglevel=info  --pool=threads --concurrency=4
+
+
+    environment:
+      - OPENAI_API_KEY=${OPENAI_API_KEY}
+    depends_on:
+      - redis
+    volumes:
+      - ./magure_ai_resume:/app
+
+  # ───── FastAPI App ─────
+  fastapi_web:
+    build:
+      context: ./pitch-analyzer
+    container_name: fastapi_web
+    command: uvicorn main:app --host 0.0.0.0 --port 8000
+    environment:
+      - OPENAI_API_KEY=${OPENAI_API_KEY}
+    ports:
+      - "8000:8000"
+    depends_on:
+      - redis
+    volumes:
+      - ./pitch-analyzer:/app
+
+  fastapi_celery:
+    build:
+      context: ./pitch-analyzer
+    container_name: fastapi_celery
+    command: celery -A app.pitchtasks worker --loglevel=info
+    environment:
+      - OPENAI_API_KEY=${OPENAI_API_KEY}
+    depends_on:
+      - redis
+    volumes:
+      - ./pitch-analyzer:/app
