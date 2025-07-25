@@ -9,10 +9,22 @@ from pydantic import BaseModel
 
 from app import app, SessionLocal, Base, engine
 
+from fastapi.middleware.cors import CORSMiddleware
+
+
+
 from app.models import Pitch
 from app import rag_utils
 from celery_app import make_celery
 celery = make_celery()
+# Add this right after you define `app`
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],  # or specify ["http://localhost:3000", "http://yourdomain.com"]
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
 
 
 router = APIRouter(prefix="/api3")
