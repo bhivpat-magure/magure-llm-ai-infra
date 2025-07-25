@@ -11,8 +11,8 @@ import json
 
 models.Base.metadata.create_all(bind=database.engine)
 
-router = APIRouter()
-router = APIRouter(prefix="/api3")
+
+router = APIRouter(prefix="/api2")
 
 
 @router.post("/register", response_model=schemas.UserOut)

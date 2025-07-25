@@ -14,7 +14,7 @@ from app import rag_utils
 from celery_app import make_celery
 celery = make_celery()
 
-router = APIRouter()
+
 router = APIRouter(prefix="/api3")
 
 UPLOAD_DIR = "uploads"
