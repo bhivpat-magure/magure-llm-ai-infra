@@ -1,0 +1,28 @@
+version: '3.9'
+
+services:
+  ollama:
+    image: ollama/ollama
+    container_name: ollama
+    ports:
+      - "11434:11434"  # expose Ollama's API
+    volumes:
+      - ollama-data:/root/.ollama  # store models persistently
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - capabilities: [gpu]  # ❗ remove if no GPU
+
+volumes:
+  ollama-data:
+
+
+# for running the docker run the commands for the first time
+# docker-compose up -d
+# docker exec -it ollama bash
+# ollama pull llama3
+# exit
+
+# for the subsequent runs, you can use:
+# docker-compose up -d --build
