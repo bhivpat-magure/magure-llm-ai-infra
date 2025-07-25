@@ -10,7 +10,7 @@ import json
 
 
 models.Base.metadata.create_all(bind=database.engine)
-
+base_url = "http://ollama:11434/api/generate"
 
 router = APIRouter(prefix="/api2")
 
@@ -65,7 +65,7 @@ def post_message(message: schemas.MessageCreate, db: Session = Depends(database.
         print("<================================>")
         # Call Ollama
         response = requests.post(
-            "http://localhost:11434/api/generate",
+            base_url,
             json={
                 "model": "llama3",
                 "prompt": context,
