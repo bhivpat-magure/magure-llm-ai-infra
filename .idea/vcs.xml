@@ -2,6 +2,7 @@
 <project version="4">
   <component name="VcsDirectoryMappings">
     <mapping directory="" vcs="Git" />
+    <mapping directory="$PROJECT_DIR$/services/MagureAi-Chat-Box" vcs="Git" />
     <mapping directory="$PROJECT_DIR$/services/magure_ai_resume" vcs="Git" />
   </component>
 </project>
