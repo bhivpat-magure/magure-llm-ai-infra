@@ -26,11 +26,7 @@ services:
     build:
       context: ./magure_ai_resume
     container_name: flask_celery
-    #command: celery -A app.celery_app worker --loglevel=info --pool=solo
-    #command: celery -A celery_worker.celery worker --loglevel=info --pool=solo
-    command: celery -A celery_worker worker --loglevel=info  --pool=threads --concurrency=4
-
-
+    command: celery -A celery_worker worker --loglevel=info --pool=threads --concurrency=8
     environment:
       - OPENAI_API_KEY=${OPENAI_API_KEY}
     depends_on:
@@ -43,7 +39,7 @@ services:
     build:
       context: ./pitch-analyzer
     container_name: fastapi_web
-    command: uvicorn main:app --host 0.0.0.0 --port 8000
+    command: uvicorn main:app --host 0.0.0.0 --port 8000 --workers 2
     environment:
       - OPENAI_API_KEY=${OPENAI_API_KEY}
     ports:
@@ -57,10 +53,27 @@ services:
     build:
       context: ./pitch-analyzer
     container_name: fastapi_celery
-    command: celery -A app.pitchtasks worker --loglevel=info
+    command: celery -A app.pitchtasks worker --loglevel=info --pool=threads --concurrency=4
     environment:
       - OPENAI_API_KEY=${OPENAI_API_KEY}
     depends_on:
       - redis
     volumes:
       - ./pitch-analyzer:/app
+
+  # ───── Ollama Service ─────
+  ollama:
+    image: ollama/ollama
+    container_name: ollama
+    ports:
+      - "11434:11434"  # expose Ollama's API
+    volumes:
+      - ollama-data:/root/.ollama  # store models persistently
+    #deploy:
+     # resources:
+      #  reservations:
+       #   devices:
+        #    - capabilities: [gpu]  # ❗ remove if no GPU
+
+volumes:
+  ollama-data:
