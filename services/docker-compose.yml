@@ -7,7 +7,6 @@ services:
     ports:
       - "6379:6379"
 
-  # ───── Flask API ─────
   flask_web:
     build:
       context: ./magure_ai_resume
@@ -34,7 +33,6 @@ services:
     volumes:
       - ./magure_ai_resume:/app
 
-  # ───── FastAPI App ─────
   fastapi_web:
     build:
       context: ./pitch-analyzer
@@ -61,19 +59,47 @@ services:
     volumes:
       - ./pitch-analyzer:/app
 
-  # ───── Ollama Service ─────
+  # ───── Chatbox Backend (FastAPI) ─────
+  # ───── PostgreSQL for Chatbox ─────
+  chatbox_postgres:
+    image: postgres:13
+    container_name: chatbox_postgres
+    environment:
+      POSTGRES_DB: chatbox_db
+      POSTGRES_USER: chatuser
+      POSTGRES_PASSWORD: chatpass
+    volumes:
+      - chatbox_pg_data:/var/lib/postgresql/data
+   # ports:
+    #  - "5433:5432"  # Optional external port
+
+  # ───── Chatbox FastAPI App ─────
+  chatbox_backend:
+    build:
+      context: ./MagureAi-Chat-Box/chatbox-backend
+    container_name: chatbox_backend
+    command: uvicorn app.main:app --host 0.0.0.0 --port 8001 --reload
+    environment:
+      PGHOST: chatbox_postgres
+      PGDATABASE: chatbox_db
+      PGUSER: chatuser
+      PGPASSWORD: chatpass
+    depends_on:
+      - chatbox_postgres
+    ports:
+      - "8001:8001"
+    volumes:
+      - ./MagureAi-Chat-Box/chatbox-backend:/app
+
+
   ollama:
     image: ollama/ollama
     container_name: ollama
     ports:
-      - "11434:11434"  # expose Ollama's API
+      - "11434:11434"
     volumes:
-      - ollama-data:/root/.ollama  # store models persistently
-    #deploy:
-     # resources:
-      #  reservations:
-       #   devices:
-        #    - capabilities: [gpu]  # ❗ remove if no GPU
+      - ollama-data:/root/.ollama
 
 volumes:
   ollama-data:
+  chatbox_pg_data:

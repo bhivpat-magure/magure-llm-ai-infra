@@ -8,7 +8,7 @@ class Settings(BaseSettings):
     PGDATABASE: str
     PGUSER: str
     PGPASSWORD: str
-    PGSSLMODE: str = "require"
+    PGSSLMODE: str = "disable"
     PGCHANNELBINDING: str = "require"
     
     # Application settings
