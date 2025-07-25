@@ -1,1 +1,5 @@
+services/magure_ai_resume/.env
+.env.template
 .env
+services/pitch-analyzer/.env
+services/MagureAi-Chat-Box/.env
