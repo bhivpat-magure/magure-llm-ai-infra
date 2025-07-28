@@ -82,7 +82,7 @@ services:
   # ───── Chatbox FastAPI App ─────
   chatbox_backend:
     build:
-      context: ./MagureAi-Chat-Box/chatbox-backend
+      context: MagureAi-Chat-Box/chatbox-backend
     container_name: chatbox_backend
     command: uvicorn app.main:app --host 0.0.0.0 --port 8001 --reload
     environment:
@@ -95,7 +95,7 @@ services:
     ports:
       - "8001:8001"
     volumes:
-      - ./MagureAi-Chat-Box/chatbox-backend:/app
+      - ./MagureAi-Chat-Box22/chatbox-backend:/app
 
 
   ollama:

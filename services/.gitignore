@@ -1,1 +1,5 @@
 .env
+magure_ai_resume/app/uploaded_cvs
+magure_ai_resume/vector_store
+pitch-analyzer/app/uploaded_pitches
+pitch-analyzer/uploads

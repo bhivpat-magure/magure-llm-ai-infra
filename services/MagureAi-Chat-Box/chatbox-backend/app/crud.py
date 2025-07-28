@@ -1,23 +1,22 @@
 
-from fastapi import Depends, APIRouter
+from fastapi import HTTPException
 from sqlalchemy.orm import Session
-from app.database import get_db
-from app import models, schemas, utils
+from app import models, schemas
 import uuid
-import logging
 
 def create_user(user:schemas.UserCreate ,db: Session ):
     
-    print(f"Creating user with username: {user.username}")
-    
-    print("=======================================================")
+    existing_user = db.query(models.User).filter(models.User.username == user.username).first()
+    if existing_user:
+        raise HTTPException(status_code=400, detail="User already exists")
     
     db_user = models.User(
         username=user.username,
-        password=utils.hash_password(user.password)
+        password=user.password
     )
-    
-    print(f"Creating user with username: {db_user}")
+   
+   
+    print("The hash password is",db_user.password)
     
     db.add(db_user)
     db.commit()

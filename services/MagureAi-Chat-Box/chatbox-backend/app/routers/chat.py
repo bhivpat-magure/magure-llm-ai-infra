@@ -3,25 +3,17 @@ import uuid
 from datetime import datetime
 import requests
 from sqlalchemy.orm import Session
-from .. import models, schemas, database, crud , utils
-import json
+from .. import models, schemas, database, crud , utils 
+from ..config import settings
 
+
+BASE_URL  = "http://ollama:11434/api/generate" if settings.ENVIRONMENT == 'production' else "http://localhost:11434/api/generate"
 
 
 
 models.Base.metadata.create_all(bind=database.engine)
-base_url = "http://ollama:11434/api/generate"
 
-router = APIRouter(prefix="/api2")
-
-
-@router.post("/register", response_model=schemas.UserOut)
-def register(user: schemas.UserCreate,db: Session = Depends(database.get_db)):
-    
-    print(f"Registering user with username: {user}")
-    
-    return crud.create_user(user,db)
-
+router = APIRouter(prefix = "/api2/chat" , tags = ["Chat"])
 
 @router.post("/chat_sessions", response_model=schemas.ChatSessionOut)
 def create_chat(session: schemas.ChatSessionCreate, db: Session = Depends(database.get_db)):
@@ -43,29 +35,23 @@ def post_message(message: schemas.MessageCreate, db: Session = Depends(database.
             created_at=datetime.utcnow()
         )
         
-        
-        print("<=======================================================>")
-        print(f"User message to be saved: {user_msg}")
-        print("<=======================================================>")  
-        
         db.add(user_msg)
-        db.flush()  # ✅ Temporarily saves but doesn’t commit yet
+        db.flush() 
         
         print(f"User message saved: {user_msg.content}")
 
         # Fetch all messages for the chat
         past_messages = crud.get_messages_by_chat_id(message.chat_id, db)
         
-
-
         context = "\n".join([f"{utils.normalize_role(msg.role)}: {msg.content}" for msg in past_messages])
 
         print("<================================>")
         print(f"Context for Ollama: {context}")
         print("<================================>")
         # Call Ollama
+        
         response = requests.post(
-            base_url,
+            BASE_URL,
             json={
                 "model": "llama3",
                 "prompt": context,
@@ -97,7 +83,7 @@ def post_message(message: schemas.MessageCreate, db: Session = Depends(database.
         return assistant_msg
 
     except Exception as e:
-        db.rollback()  # ✅ Roll back if anything fails
+        db.rollback()  # Roll back if anything fails
         raise HTTPException(status_code=500, detail=f"Failed to handle message: {e}")
 
 
