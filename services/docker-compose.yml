@@ -66,37 +66,32 @@ services:
       - ./pitch-analyzer:/app
 
   # ───── Chatbox Backend (FastAPI) ─────
-  # ───── PostgreSQL for Chatbox ─────
   chatbox_postgres:
     image: postgres:13
     container_name: chatbox_postgres
+    env_file:
+      - .env
     environment:
-      POSTGRES_DB: chatbox_db
-      POSTGRES_USER: chatuser
-      POSTGRES_PASSWORD: chatpass
+      POSTGRES_DB: ${PGDATABASE}
+      POSTGRES_USER: ${PGUSER}
+      POSTGRES_PASSWORD: ${PGPASSWORD}
     volumes:
       - chatbox_pg_data:/var/lib/postgresql/data
-   # ports:
-    #  - "5433:5432"  # Optional external port
 
   # ───── Chatbox FastAPI App ─────
   chatbox_backend:
     build:
-      context: MagureAi-Chat-Box/chatbox-backend
+      context: ./MagureAi-Chat-Box/chatbox-backend
     container_name: chatbox_backend
     command: uvicorn app.main:app --host 0.0.0.0 --port 8001 --reload
-    environment:
-      PGHOST: chatbox_postgres
-      PGDATABASE: chatbox_db
-      PGUSER: chatuser
-      PGPASSWORD: chatpass
+    env_file:
+      - .env
     depends_on:
       - chatbox_postgres
     ports:
       - "8001:8001"
     volumes:
       - ./MagureAi-Chat-Box/chatbox-backend:/app
-
 
   ollama:
     image: ollama/ollama
