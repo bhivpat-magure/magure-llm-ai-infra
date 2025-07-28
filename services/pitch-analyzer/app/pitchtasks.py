@@ -8,9 +8,13 @@ import os
 
 
 celery_app = Celery("worker", broker='redis://redis:6379/0', backend='redis://redis:6379/0')
+celery_app.conf.task_routes = {
+    'pitchtasks.process_pitch': {'queue': 'pitch_tasks'}
+}
 
-@celery_app.task(name="app.pitchtasks.process_pitch")
-def process_pitch(pitch_id: str, file_path: str):
+
+@celery_app.task(bind=True, max_retries=10,name="pitchtasks.process_pitch",queue="pitch_tasks")
+def process_pitch(self, pitch_id: str, file_path: str):
     db = SessionLocal()
     try:
         text = extract_text(file_path)

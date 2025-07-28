@@ -8,7 +8,7 @@ import logging
 import numpy as np
 import faiss
 
-from app import celery, db
+from app import celery, db, upload_to_cloudinary
 from app.models import UploadedCV, JsonData
 from utils.llm import json_parsing_with_openai
 from utils.cv_processing import extract_text_from_pdf, extract_text_from_docx, get_paths_for_group
@@ -139,14 +139,14 @@ def store_structured_chunk(cv_id, name, relevant_skills, skills, college, total_
 
     logger.info(f"✅ Stored {len(chunks)} structured chunk(s) for CV {cv_id} in group '{group}'")
 
-@celery.task(bind=True, max_retries=3, name="tasks.upload_to_cloudinary_task")
+@celery.task(bind=True, max_retries=10, name="tasks.upload_to_cloudinary_task", queue="resume_tasks")
 def upload_to_cloudinary_task(self, cv_id):
     try:
         cv = UploadedCV.query.get(cv_id)
         if not cv:
             raise Exception("CV not found")
 
-        upload_result = cloudinary.uploader.upload(
+        upload_result = upload_to_cloudinary(
             cv.filepath,
             resource_type="auto",
             folder="resumes"
@@ -165,7 +165,7 @@ def upload_to_cloudinary_task(self, cv_id):
         logger.error(f"❌ Cloudinary upload failed for CV ID {cv_id}: {str(e)}")
         raise self.retry(exc=e, countdown=10)
 
-@celery.task(bind=True, max_retries=3, name="tasks.parse_resume_task")
+@celery.task(bind=True, max_retries=10, name="tasks.parse_resume_task",queue="resume_tasks")
 def parse_resume_task(self, cv_id, group_name):
     try:
         cv = UploadedCV.query.get(cv_id)
@@ -217,7 +217,7 @@ def parse_resume_task(self, cv_id, group_name):
         existing.last_working_date  = result.get("last_working_date")
         existing.education = result.get("education")
         existing.parsed = True
-        existing.attempts += (existing.attempts or 0) + 1
+        existing.attempts = (existing.attempts or 0) + 1
         existing.last_error = None
         db.session.commit()
 

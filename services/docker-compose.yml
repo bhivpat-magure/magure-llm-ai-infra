@@ -28,9 +28,12 @@ services:
     build:
       context: ./magure_ai_resume
     container_name: flask_celery
-    command: celery -A celery_worker worker --loglevel=info --pool=threads --concurrency=8
+    command: celery -A celery_worker worker  -Q resume_tasks --pool=threads --concurrency=8 --loglevel=info
     environment:
       - OPENAI_API_KEY=${OPENAI_API_KEY}
+      - CLOUDINARY_CLOUD_NAME=${CLOUDINARY_CLOUD_NAME}
+      - CLOUDINARY_API_KEY=${CLOUDINARY_API_KEY}
+      - CLOUDINARY_API_SECRET=${CLOUDINARY_API_SECRET}
     depends_on:
       - redis
     volumes:
@@ -54,7 +57,7 @@ services:
     build:
       context: ./pitch-analyzer
     container_name: fastapi_celery
-    command: celery -A app.pitchtasks worker --loglevel=info --pool=threads --concurrency=4
+    command: celery -A app.pitchtasks worker -Q pitch_tasks  --pool=threads --concurrency=4 --loglevel=info
     environment:
       - OPENAI_API_KEY=${OPENAI_API_KEY}
     depends_on:
