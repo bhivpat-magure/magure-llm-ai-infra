@@ -95,7 +95,7 @@ services:
     ports:
       - "8001:8001"
     volumes:
-      - ./MagureAi-Chat-Box22/chatbox-backend:/app
+      - ./MagureAi-Chat-Box/chatbox-backend:/app
 
 
   ollama:
