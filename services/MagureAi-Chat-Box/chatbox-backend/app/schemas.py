@@ -9,12 +9,18 @@ from enum import Enum
 class RoleEnum(str, Enum):
     user = "user"
     client = "assistant"
+    
+class ModelType(str, Enum):
+    OLLAMA = "ollama"
+    OPENAI  = "openai"
+    ANTHROPIC = "anthropic"
 
 class MessageCreate(BaseModel):
     content: str    
     chat_id: UUID
     user_id:UUID
-    role : RoleEnum = RoleEnum.user  
+    role : RoleEnum = RoleEnum.user
+    modelType : ModelType = ModelType.OLLAMA 
 
 class MessageOut(BaseModel):
     id: UUID

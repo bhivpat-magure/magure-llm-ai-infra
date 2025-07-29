@@ -10,7 +10,7 @@ app = FastAPI(
 )
 
 
-app.add_middleware(AuthMiddleware)
+# app.add_middleware(AuthMiddleware)
 
 # CORS middleware configuration
 app.add_middleware(
