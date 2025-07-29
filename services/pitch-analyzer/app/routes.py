@@ -140,5 +140,22 @@ Investment Decision: {pitch_data.investment_decision or "N/A"}
     finally:
         db.close()
 
+
+@router.get("/all-pitches")
+async def get_all_pitches():
+    db: Session = SessionLocal()
+    try:
+        pitches = db.query(Pitch).all()
+        return [
+            {
+                "file_name": pitch.file_name,
+                "file_path": pitch.file_path
+            }
+            for pitch in pitches
+        ]
+    finally:
+        db.close()
+
+
 # Include router
 app.include_router(router)

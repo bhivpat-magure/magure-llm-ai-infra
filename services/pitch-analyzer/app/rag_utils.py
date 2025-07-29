@@ -141,3 +141,58 @@ def query_llm(context: str, question: str) -> str:
     ]
     completion = client.chat.completions.create(model="gpt-4", messages=messages)
     return completion.choices[0].message.content.strip()
+
+
+
+'''
+import pdfplumber
+from qdrant_client.http.models import PointStruct, VectorParams, Distance
+from uuid import uuid4
+from openai import OpenAI
+
+client = OpenAI(api_key="your_openai_api_key_here")
+
+# Ensure the collection exists
+def init_qdrant_collection(pitch_id: str, vector_size: int = 1536):
+    if pitch_id not in [c.name for c in qdrant.get_collections().collections]:
+        qdrant.recreate_collection(
+            collection_name=pitch_id,
+            vectors_config=VectorParams(size=vector_size, distance=Distance.COSINE)
+        )
+
+# Read PDF, chunk text, embed and store
+def process_pdf_and_store(file_path: str, pitch_id: str):
+    init_qdrant_collection(pitch_id)
+
+    with pdfplumber.open(file_path) as pdf:
+        full_text = "\n".join([page.extract_text() or "" for page in pdf.pages])
+
+    # Chunking (simple fixed-size with overlap)
+    chunk_size = 500
+    overlap = 50
+    chunks = [full_text[i:i+chunk_size] for i in range(0, len(full_text), chunk_size - overlap)]
+
+    points = []
+    for chunk in chunks:
+        if chunk.strip():  # Skip empty
+            embedding = client.embeddings.create(model="text-embedding-ada-002", input=[chunk]).data[0].embedding
+            points.append(PointStruct(
+                id=str(uuid4()),
+                vector=embedding,
+                payload={"text": chunk}
+            ))
+
+    if points:
+        qdrant.upsert(collection_name=pitch_id, points=points)
+
+def search_similar_chunks(pitch_id: str, query: str) -> str:
+    query_vec = client.embeddings.create(model="text-embedding-ada-002", input=[query]).data[0].embedding
+    hits = qdrant.search(
+        collection_name=pitch_id,
+        query_vector=query_vec,
+        limit=5,
+        with_payload=True
+    )
+    return "\n".join([hit.payload.get("text", "") for hit in hits])
+
+'''

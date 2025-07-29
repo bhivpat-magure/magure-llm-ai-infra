@@ -141,3 +141,92 @@ def process_pitch(self, pitch_id: str, file_path: str, model: str = "gpt-4o"):
             os.remove(file_path)
         except Exception:
             pass
+
+
+'''
+#step 1 install 
+
+#step2
+from pdf2image import convert_from_path
+from io import BytesIO
+import base64
+
+def get_pdf_page_images(file_path: str, start: int, end: int):
+    images = convert_from_path(file_path, dpi=150, first_page=start, last_page=end)
+    image_base64_list = []
+    for img in images:
+        buffered = BytesIO()
+        img.save(buffered, format="PNG")
+        img_base64 = base64.b64encode(buffered.getvalue()).decode("utf-8")
+        image_base64_list.append(img_base64)
+    return image_base64_list
+    
+    
+    #step3
+    import openai
+
+openai.api_key = "sk-..."  # your API key
+
+def extract_insights_from_images(images_base64: list[str]) -> str:
+    messages = [{"role": "user", "content": "Please extract pitch insights from the following pages of a pitch deck."}]
+    
+    for img_b64 in images_base64:
+        messages.append({
+            "role": "user",
+            "content": [{
+                "type": "image_url",
+                "image_url": {
+                    "url": f"data:image/png;base64,{img_b64}",
+                    "detail": "low"
+                }
+            }]
+        })
+
+    response = openai.ChatCompletion.create(
+        model="gpt-4-vision-preview",
+        messages=messages,
+        max_tokens=800
+    )
+
+    return response.choices[0].message.content.strip()
+    
+#step4 
+    from math import ceil
+from PyPDF2 import PdfReader
+from app.models import PitchData
+from app.db import SessionLocal
+import uuid
+
+def process_pitch_pdf_images(pitch_id: str, file_path: str):
+    session = SessionLocal()
+    try:
+        total_pages = len(PdfReader(file_path).pages)
+        chunks = ceil(total_pages / 4)
+
+        all_insights = []
+
+        for i in range(chunks):
+            start = i * 4 + 1
+            end = min(start + 3, total_pages)
+            images_b64 = get_pdf_page_images(file_path, start, end)
+            insights = extract_insights_from_images(images_b64)
+            all_insights.append(f"Pages {start}-{end}:\n{insights}")
+
+        combined = "\n\n".join(all_insights)
+
+        pitch_data = PitchData(
+            id=str(uuid.uuid4()),
+            pitch_id=pitch_id,
+            extras=combined  # store in extras
+        )
+        session.add(pitch_data)
+        session.commit()
+        return {"status": "success", "insights": combined}
+
+    except Exception as e:
+        session.rollback()
+        raise e
+    finally:
+        session.close()
+
+'''
