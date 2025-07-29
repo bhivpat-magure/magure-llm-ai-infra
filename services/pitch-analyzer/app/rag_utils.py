@@ -12,7 +12,7 @@ from openai import OpenAI
 openai_api_key = os.getenv("OPENAI_API_KEY")
 client = OpenAI(api_key=openai_api_key)
 
-qdrant = QdrantClient(host="qdrant", port=6333)
+qdrant = QdrantClient(host=os.getenv("QDRANT_HOST", "qdrant"), port=6333)
 
 from pdf2image import convert_from_path
 
@@ -20,8 +20,7 @@ from PIL import Image
 import io
 import openai
 import base64
-# Configure your OpenAI key
-client = openai.OpenAI(api_key="YOUR_API_KEY")  # Replace with your actual key
+
 
 
 

@@ -127,10 +127,11 @@ Investment Decision: {pitch_data.investment_decision or "N/A"}
 """
 
         # Also fetch similar chunks from RAG
-        rag_context = rag_utils.search_similar_chunks(payload.pitch_id, payload.question)
+        #rag_context = rag_utils.search_similar_chunks(payload.pitch_id, payload.question)
 
         # Combine both contexts
-        full_context = pitch_context.strip() + "\n\n---\n\n" + rag_context.strip()
+        #full_context = pitch_context.strip() + "\n\n---\n\n" + rag_context.strip()
+        full_context = pitch_context.strip()
 
         # Send to LLM
         answer = rag_utils.query_llm(full_context, payload.question)
