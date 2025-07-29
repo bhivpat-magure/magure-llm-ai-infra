@@ -5,26 +5,20 @@ from .. import schemas, crud
 from ..utils import create_access_token,verify_password,get_password_hash
 
 
-def login_user(user: schemas.UserLogin, db: Session):
-    
-        
+def login_user(user: schemas.UserLogin, db: Session):    
     db_user = crud.get_user_by_username(user.username, db)
-    
 
-    verified_password = verify_password(user.password,db_user.password)    
-    
-    
-    print("<============== The verified passward is ============>" , verified_password)
-    
-    
-    if not db_user or not verified_password:
-        raise HTTPException(status_code=401, detail="Invalid credentials")
+    if not db_user:
+        raise HTTPException(status_code=401, detail="Invalid username or user does not exist")
+
+    if not verify_password(user.password, db_user.password):
+        raise HTTPException(status_code=401, detail="Incorrect password")
     
     token = create_access_token({"sub": str(db_user.id)})
     return {
         "access_token": token,
         "token_type": "bearer",
-        "user_id": str(db_user.id),   
+        "user_id": str(db_user.id),      
         "username": db_user.username  
     }
 
