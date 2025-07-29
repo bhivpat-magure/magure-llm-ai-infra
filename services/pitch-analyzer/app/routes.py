@@ -1,11 +1,12 @@
 import os
 from uuid import uuid4
 from typing import List
-from fastapi import UploadFile, File, HTTPException, APIRouter
+from fastapi import UploadFile, File, HTTPException, APIRouter, Query
 from sqlalchemy.exc import SQLAlchemyError
 from werkzeug.utils import secure_filename
 from sqlalchemy.orm import Session
 from pydantic import BaseModel
+
 
 from app import app, SessionLocal, Base, engine
 from app.pitchtasks import process_pitch
@@ -13,7 +14,7 @@ from fastapi.middleware.cors import CORSMiddleware
 
 
 
-from app.models import Pitch
+from app.models import Pitch, PitchData
 from app import rag_utils
 from celery_app import make_celery
 celery = make_celery()
@@ -43,7 +44,10 @@ class PitchQuery(BaseModel):
     question: str
 
 @router.post("/analyze-pitches")
-async def analyze_pitches(files: List[UploadFile] = File(...)):
+async def analyze_pitches(
+    files: List[UploadFile] = File(...),
+    model: str = Query(default="gpt-4o")
+):
     results = []
     db: Session = SessionLocal()
 
@@ -60,16 +64,29 @@ async def analyze_pitches(files: List[UploadFile] = File(...)):
             db.add(pitch)
             db.commit()
 
-            #celery.send_task("app.pitchtasks.process_pitch", args=[pitch_id, saved_path])
-            process_pitch.delay(pitch_id, saved_path)
-            results.append({"filename": filename, "pitch_id": pitch_id, "status": "queued"})
+            # Enqueue task with model
+            process_pitch.delay(pitch_id, saved_path, model)
+
+            results.append({
+                "filename": filename,
+                "pitch_id": pitch_id,
+                "status": "processing"
+            })
 
         except SQLAlchemyError as e:
             db.rollback()
-            results.append({"filename": filename, "status": "error", "detail": str(e)})
+            results.append({
+                "filename": filename,
+                "status": "error",
+                "detail": str(e)
+            })
 
         except Exception as e:
-            results.append({"filename": filename, "status": "error", "detail": f"Unexpected error: {str(e)}"})
+            results.append({
+                "filename": filename,
+                "status": "error",
+                "detail": f"Unexpected error: {str(e)}"
+            })
 
     db.close()
     return {"results": results}
@@ -80,10 +97,47 @@ async def ask_about_pitch(payload: PitchQuery):
     if not payload.pitch_id or not payload.question:
         raise HTTPException(status_code=400, detail="pitch_id and question required")
 
-    context = rag_utils.search_similar_chunks(payload.pitch_id, payload.question)
-    answer = rag_utils.query_llm(context, payload.question)
-    return {"answer": answer}
+    db: Session = SessionLocal()
 
+    try:
+        pitch_data = db.query(PitchData).filter(PitchData.pitch_id == payload.pitch_id).first()
+        if not pitch_data:
+            raise HTTPException(status_code=404, detail="Pitch data not found")
+
+        # Convert pitch_data fields to a structured string
+        pitch_context = f"""
+Company Name: {pitch_data.company or "N/A"}
+Industry: {pitch_data.industry or "N/A"}
+Insight Summary: {pitch_data.insights or "N/A"}
+
+Strengths:
+{pitch_data.strengths or "N/A"}
+
+Weaknesses:
+{pitch_data.weaknesses or "N/A"}
+
+Revenue: {pitch_data.revenue or "N/A"}
+ARR: {pitch_data.arr or "N/A"}
+Total Turnover: {pitch_data.total_turnover or "N/A"}
+
+Extras:
+{pitch_data.extras or "N/A"}
+
+Investment Decision: {pitch_data.investment_decision or "N/A"}
+"""
+
+        # Also fetch similar chunks from RAG
+        rag_context = rag_utils.search_similar_chunks(payload.pitch_id, payload.question)
+
+        # Combine both contexts
+        full_context = pitch_context.strip() + "\n\n---\n\n" + rag_context.strip()
+
+        # Send to LLM
+        answer = rag_utils.query_llm(full_context, payload.question)
+        return {"answer": answer}
+
+    finally:
+        db.close()
 
 # Include router
 app.include_router(router)

@@ -14,6 +14,71 @@ client = OpenAI(api_key=openai_api_key)
 
 qdrant = QdrantClient(host="qdrant", port=6333)
 
+from pdf2image import convert_from_path
+
+from PIL import Image
+import io
+import openai
+import base64
+# Configure your OpenAI key
+client = openai.OpenAI(api_key="YOUR_API_KEY")  # Replace with your actual key
+
+
+
+def extract_images_from_pdf(pdf_path):
+    images = convert_from_path(pdf_path, dpi=200)  # List of PIL Images
+    image_blobs = []
+
+    for img in images:
+        img_buffer = io.BytesIO()
+        img.save(img_buffer, format='PNG')
+        encoded = base64.b64encode(img_buffer.getvalue()).decode('utf-8')
+        image_blobs.append(encoded)
+
+    return image_blobs  # List of base64 strings
+
+
+def call_gpt4_vision_on_pdf(pdf_path):
+    images = extract_images_from_pdf(pdf_path)
+
+    # Prepare image input
+    inputs = []
+    for b64 in images[:5]:  # Limit to first 5 pages or extend as needed
+        inputs.append({
+            "type": "image_url",
+            "image_url": {
+                "url": f"data:image/png;base64,{b64}",
+                "detail": "high"
+            }
+        })
+
+    system_prompt = (
+        "You are a startup analyst assistant. A user will upload a pitch deck (as images). "
+        "Extract the following:\n"
+        "- Company Name\n"
+        "- Industry\n"
+        "- Insight Summary (100 words)\n"
+        "- Strengths (1–3 bullet points)\n"
+        "- Weaknesses (1–3 bullet points)\n"
+        "- Revenue (state as-is or 'AI Estimated')\n"
+        "- ARR\n"
+        "- Total Turnover\n"
+        "- Any other relevant extras\n\n"
+        "If any item is missing and cannot be reasonably estimated, return 'Data not found'. "
+        "Mention if the value is an AI estimation."
+    )
+
+    completion = client.chat.completions.create(
+        model="gpt-4o",  # Vision-capable turbo model
+        messages=[
+            {"role": "system", "content": system_prompt},
+            {"role": "user", "content": inputs}
+        ]
+    )
+
+    return completion.choices[0].message.content.strip()
+
+
 def extract_text(path: str) -> str:
     if path.endswith(".pdf"):
         reader = PdfReader(path)
