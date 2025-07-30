@@ -41,15 +41,15 @@ def post_message(message: schemas.MessageCreate, db: Session = Depends(database.
         
         context = utils.build_context(model_type,past_messages)
         
-        print("<============================ context ========================================>")
-        print("The context is ===============================> " , context)
-        print("<===========================================================================>")
+        # print("<============================ context ========================================>")
+        # print("The context is ===============================> " , context)
+        # print("<===========================================================================>")
         
         query = utils.build_query(model_type,context)
         
-        print("<============================= query ==========================================>")
-        print("The query is ===========================> ", query)
-        print("<==============================================================================>")
+        # print("<============================= query ==========================================>")
+        # print("The query is ===========================> ", query)
+        # print("<==============================================================================>")
         
         
         response = requests.post(
@@ -71,9 +71,9 @@ def post_message(message: schemas.MessageCreate, db: Session = Depends(database.
         else:
             raise HTTPException(status_code=422, detail=f"Unsupported model type: {model_type}")
 
-        print("=========================================================")
-        print("The assistant text is =======================> " , assistant_text)
-        print("==========================================================")
+        # print("=========================================================")
+        # print("The assistant text is =======================> " , assistant_text)
+        # print("==========================================================")
         assistant_msg = models.Message(
             id=str(uuid.uuid4()),
             chat_id=message.chat_id,
