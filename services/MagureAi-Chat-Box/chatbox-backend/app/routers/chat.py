@@ -4,11 +4,6 @@ from datetime import datetime
 import requests
 from sqlalchemy.orm import Session
 from .. import models, schemas, database, crud , utils 
-from ..config import settings
-
-
-BASE_URL  = "http://ollama:11434/api/generate" if settings.ENVIRONMENT == 'production' else "http://localhost:11434/api/generate"
-
 
 
 models.Base.metadata.create_all(bind=database.engine)
@@ -25,7 +20,7 @@ def create_chat(session: schemas.ChatSessionCreate, db: Session = Depends(databa
 @router.post("/messages", response_model=schemas.MessageOut)
 def post_message(message: schemas.MessageCreate, db: Session = Depends(database.get_db)):
     try:
-        # Start a transaction manually
+        
         user_msg = models.Message(
             id=str(uuid.uuid4()),
             chat_id=message.chat_id,
@@ -40,31 +35,45 @@ def post_message(message: schemas.MessageCreate, db: Session = Depends(database.
         
         print(f"User message saved: {user_msg.content}")
 
-        # Fetch all messages for the chat
         past_messages = crud.get_messages_by_chat_id(message.chat_id, db)
         
-        context = "\n".join([f"{utils.normalize_role(msg.role)}: {msg.content}" for msg in past_messages])
-
-        print("<================================>")
-        print(f"Context for Ollama: {context}")
-        print("<================================>")
-        # Call Ollama
+        model_type = message.modelType.value if isinstance(message.modelType, schemas.ModelType) else message.modelType
+        
+        context = utils.build_context(model_type,past_messages)
+        
+        # print("<============================ context ========================================>")
+        # print("The context is ===============================> " , context)
+        # print("<===========================================================================>")
+        
+        query = utils.build_query(model_type,context)
+        
+        # print("<============================= query ==========================================>")
+        # print("The query is ===========================> ", query)
+        # print("<==============================================================================>")
+        
         
         response = requests.post(
-            BASE_URL,
-            json={
-                "model": "llama3",
-                "prompt": context,
-                "stream": False
-            }
+            query["url"],
+            json=query["json"],
+            headers=query.get("headers", {})
         )
 
         if response.status_code != 200:
-            db.rollback()  
-            raise HTTPException(status_code=500, detail="Ollama generation failed")
+            db.rollback()
+            raise HTTPException(status_code=500, detail=f"{model_type.capitalize()} generation failed")
 
-        assistant_text = response.json()["response"]
+        if model_type == "ollama":
+            assistant_text = response.json().get("response", "")
+        elif model_type == "openai":
+            assistant_text = response.json()["choices"][0]["message"]["content"]
+        elif model_type == "anthropic":
+            assistant_text = response.json()["content"][0]["text"]
+        else:
+            raise HTTPException(status_code=422, detail=f"Unsupported model type: {model_type}")
 
+        # print("=========================================================")
+        # print("The assistant text is =======================> " , assistant_text)
+        # print("==========================================================")
         assistant_msg = models.Message(
             id=str(uuid.uuid4()),
             chat_id=message.chat_id,
@@ -81,6 +90,7 @@ def post_message(message: schemas.MessageCreate, db: Session = Depends(database.
         print("<===================>", assistant_msg.content)
 
         return assistant_msg
+
 
     except Exception as e:
         db.rollback()  # Roll back if anything fails
