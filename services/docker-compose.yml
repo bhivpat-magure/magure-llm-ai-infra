@@ -23,6 +23,7 @@ services:
       - redis
     volumes:
       - ./magure_ai_resume:/app
+      - ./magure_ai_resume:/app/uploaded_cvs
 
   flask_celery:
     build:

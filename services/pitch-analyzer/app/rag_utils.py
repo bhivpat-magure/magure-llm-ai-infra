@@ -62,7 +62,7 @@ def call_gpt4_vision_on_pdf(pdf_path):
         "- Revenue (state as-is or 'AI Estimated')\n"
         "- ARR\n"
         "- Total Turnover\n"
-        "- Any other relevant extras\n\n"
+        "- Any other relevant extras, this includes everything that was missed and is important\n\n"
         "If any item is missing and cannot be reasonably estimated, return 'Data not found'. "
         "Mention if the value is an AI estimation."
     )
