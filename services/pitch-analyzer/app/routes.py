@@ -12,7 +12,7 @@ from app import app, SessionLocal, Base, engine
 from app.pitchtasks import process_pitch
 from fastapi.middleware.cors import CORSMiddleware
 
-
+from fastapi import Path
 
 from app.models import Pitch, PitchData
 from app import rag_utils
@@ -161,9 +161,9 @@ async def get_all_pitches():
 
 
 
-from fastapi import Path
 
-@app.get("/download/{pitch_id}")
+
+@router.get("/download/{pitch_id}")
 async def download_file(pitch_id: str = Path(...)):
     db: Session = SessionLocal()
     try:
