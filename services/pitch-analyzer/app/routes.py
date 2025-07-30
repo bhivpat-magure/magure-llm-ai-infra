@@ -1,13 +1,13 @@
 import os
 from uuid import uuid4
 from typing import List
-from fastapi import UploadFile, File, HTTPException, APIRouter, Query
+from fastapi import UploadFile, File, HTTPException, APIRouter, Query,Path
 from sqlalchemy.exc import SQLAlchemyError
 from werkzeug.utils import secure_filename
 from sqlalchemy.orm import Session
 from pydantic import BaseModel
-
-
+from fastapi.responses import FileResponse
+from fastapi.staticfiles import StaticFiles
 from app import app, SessionLocal, Base, engine
 from app.pitchtasks import process_pitch
 from fastapi.middleware.cors import CORSMiddleware
@@ -32,6 +32,7 @@ router = APIRouter(prefix="/api3")
 
 UPLOAD_DIR = "uploads"
 os.makedirs(UPLOAD_DIR, exist_ok=True)
+app.mount("/uploads", StaticFiles(directory=UPLOAD_DIR), name="uploads")
 
 # Ensure DB is initialized on startup
 @app.on_event("startup")
@@ -148,11 +149,36 @@ async def get_all_pitches():
         pitches = db.query(Pitch).all()
         return [
             {
+                "pitch_id":pitch.id,
                 "file_name": pitch.file_name,
-                "file_path": pitch.file_path
+                "file_path": f"/uploads/{os.path.basename(pitch.file_path)}"
             }
             for pitch in pitches
         ]
+    finally:
+        db.close()
+
+
+
+
+from fastapi import Path
+
+@app.get("/download/{pitch_id}")
+async def download_file(pitch_id: str = Path(...)):
+    db: Session = SessionLocal()
+    try:
+        pitch = db.query(Pitch).filter(Pitch.id == pitch_id).first()
+        if not pitch or not pitch.file_path:
+            raise HTTPException(status_code=404, detail="Pitch not found or file missing")
+
+        if not os.path.isfile(pitch.file_path):
+            raise HTTPException(status_code=404, detail="File does not exist on disk")
+
+        return FileResponse(
+            path=pitch.file_path,
+            media_type='application/octet-stream',
+            filename=pitch.file_name  # use original uploaded name
+        )
     finally:
         db.close()
 
