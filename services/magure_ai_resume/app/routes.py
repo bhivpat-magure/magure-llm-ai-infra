@@ -249,6 +249,7 @@ def upload_jd():
         return jsonify({"error": "Internal error", "details": str(e)}), 500
 
 
+
 @api.route("/cvs", methods=["POST"])
 def get_cvs():
     data = request.get_json() or {}
@@ -275,24 +276,20 @@ def get_cvs():
         if not jd:
             continue
 
-        # Base CV data
+        # ─── 3. Base CV Data ───
         cv_dict = cv.as_dict()
         cv_dict.update({
-            "college": jd.college,
-            "skills": jd.skills,
-            "total_experience": jd.total_experience,
-            "current_company": jd.current_company,
-            "past_company": jd.past_company,
-            "location": jd.location,
-            "education": jd.education,
+            "name": jd.data.get("name", "Data not found") if jd.data else "Data not found",
+            "job_profile": jd.data.get("job_profile", "Data not found") if jd.data else "Data not found",
+            "total_experience": jd.total_experience or "Data not found"
         })
 
-        # ─── Filter: by cv_id ───
+        # ─── 4. Filter by CV ID ───
         if "cv_id" in data:
             if int(data["cv_id"]) != cv.id:
                 continue
 
-        # ─── Filter: by experience ───
+        # ─── 5. Filter by Experience Range ───
         if "experience" in data:
             try:
                 exp_str = jd.total_experience or ""
@@ -304,7 +301,7 @@ def get_cvs():
                 logger.warning(f"Experience parsing failed for CV {cv.id}: {e}")
                 continue
 
-        # ─── Filter: by skills ───
+        # ─── 6. Filter by Skills ───
         if "skills" in data:
             required_skills = set([s.strip().lower() for s in data["skills"]])
             candidate_skills = set([s.strip().lower() for s in jd.skills or []])
@@ -316,23 +313,23 @@ def get_cvs():
             if not matched_skills:
                 continue
 
-        # ─── Filter: by location ───
+        # ─── 7. Filter by Location ───
         if "location" in data:
             candidate_location = (jd.location or "").strip().lower()
             if candidate_location != data["location"].strip().lower():
                 continue
 
-        # ─── Filter: by education ───
+        # ─── 8. Filter by Education ───
         if "education" in data:
             edu_required = data["education"].strip().lower()
             edu_list = [e.strip().lower() for e in jd.education or []]
             if edu_required not in edu_list:
                 continue
 
-        # ─── Filter: by availability ───
+        # ─── 9. Filter by Availability ───
         if "availability" in data:
             if not jd.last_working_date:
-                continue  # Currently working → exclude from availability filter
+                continue  # Currently working → exclude
 
             try:
                 lwd = jd.last_working_date
@@ -346,30 +343,25 @@ def get_cvs():
                 if avail_req == "immediately":
                     if lwd > today:
                         continue
-                elif avail_req == "15 days":
-                    if delta_days < -15:
-                        continue
-                elif avail_req == "30 days":
-                    if delta_days < -30:
-                        continue
-                elif avail_req == "45 days":
-                    if delta_days < -45:
-                        continue
+                elif avail_req == "15 days" and delta_days < -15:
+                    continue
+                elif avail_req == "30 days" and delta_days < -30:
+                    continue
+                elif avail_req == "45 days" and delta_days < -45:
+                    continue
                 else:
-                    continue  # unknown filter → skip
-
+                    pass  # Unknown availability term will fall through
             except Exception as e:
                 logger.warning(f"Availability filter failed for CV {cv.id}: {e}")
                 continue
 
-        # ─── Days available logic ───
+        # ─── 10. Calculate Days Available ───
         if jd.last_working_date:
             try:
                 lwd = jd.last_working_date
                 if isinstance(lwd, str):
                     lwd = datetime.fromisoformat(lwd)
-                days_available = (datetime.utcnow() - lwd).days
-                cv_dict["days_available"] = days_available
+                cv_dict["days_available"] = (datetime.utcnow() - lwd).days
             except Exception:
                 cv_dict["days_available"] = "Invalid date format"
         else:
@@ -378,6 +370,8 @@ def get_cvs():
         results.append(cv_dict)
 
     return jsonify(results), 200
+
+
 
 @api.route("/uploads/<filename>", methods=["GET"])
 def uploaded_file(filename):

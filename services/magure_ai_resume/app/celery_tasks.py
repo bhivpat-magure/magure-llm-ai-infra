@@ -194,6 +194,7 @@ def parse_resume_task(self, cv_id, group_name):
             "- location: location of candidate, pick out state only not country \n"
             " -education: list of degrees, diploma or others \n"
             "- last_working_date: last working date, if a candidate is still working then null, if not then pick last working date or month \n"
+            "- job_profile: Job or work role of the candidate / job title  \n"
             "Resume:\n\n" + raw_text
         )
 
@@ -216,6 +217,7 @@ def parse_resume_task(self, cv_id, group_name):
         existing.location = result.get("location")
         existing.last_working_date  = result.get("last_working_date")
         existing.education = result.get("education")
+        existing.job_profile = result.get("job_profile")
         existing.parsed = True
         existing.attempts = (existing.attempts or 0) + 1
         existing.last_error = None

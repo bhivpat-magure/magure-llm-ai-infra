@@ -142,22 +142,28 @@ Investment Decision: {pitch_data.investment_decision or "N/A"}
         db.close()
 
 
+
 @router.get("/all-pitches")
 async def get_all_pitches():
     db: Session = SessionLocal()
     try:
         pitches = db.query(Pitch).all()
-        return [
-            {
-                "pitch_id":pitch.id,
+
+        response = []
+        for pitch in pitches:
+            pitch_data = pitch.pitch_data
+            response.append({
+                "pitch_id": pitch.id,
                 "file_name": pitch.file_name,
-                "file_path": f"/uploads/{os.path.basename(pitch.file_path)}"
-            }
-            for pitch in pitches
-        ]
+                "file_path": f"/uploads/{os.path.basename(pitch.file_path)}",
+                "company": pitch_data.company if pitch_data else None,
+                "industry": pitch_data.industry if pitch_data else None,
+                "insights": pitch_data.insights if pitch_data else None,
+            })
+
+        return response
     finally:
         db.close()
-
 
 
 

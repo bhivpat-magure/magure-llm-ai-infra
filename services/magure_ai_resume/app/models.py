@@ -66,6 +66,7 @@ class JsonData(db.Model):
     location = db.Column(db.JSON, nullable=True)
     last_working_date = db.Column(db.JSON, nullable=True)
     education = db.Column(db.JSON, nullable=True)
+    job_profile = db.Column(db.JSON, nullable=True)
 
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
     updated_at = db.Column(db.DateTime, onupdate=datetime.utcnow)
