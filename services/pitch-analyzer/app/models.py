@@ -28,19 +28,43 @@ class PitchData(Base):
     id = Column(String, primary_key=True, index=True)
     pitch_id = Column(String, ForeignKey("pitches.id", ondelete="CASCADE"), nullable=False)
 
+    # Basic Info
     company = Column(String)
     industry = Column(String)
     file_id = Column(String)
     insights = Column(Text)  # 100-word summary
-    strengths = Column(Text)  # Store as newline-separated string or use JSONB
+    strengths = Column(Text)  # Can store bullet points as newline-separated
     weaknesses = Column(Text)
     revenue = Column(String)
     arr = Column(String)
     total_turnover = Column(String)
-    extras = Column(Text)
 
+    # Financial Growth
+    revenue_yoy_growth = Column(String)
+    revenue_mom_growth = Column(String)
+
+    # Market Insights
+    market_cap = Column(String)
+    tam = Column(String)  # Total Addressable Market
+    total_finance_flow = Column(String)
+
+    # Team & Operations
+    technology = Column(String)
+    operational_sector = Column(String)
+    team_size = Column(String)
+    core_team_details = Column(Text)
+
+    # Competition & Positioning
+    competition = Column(Text)
+    market_share = Column(String)
+
+    # IP & Vision
+    ip = Column(Text)  # Intellectual Property
+    growth_plan_5_years = Column(Text)
+
+    # Extras & System Fields
+    extras = Column(Text)
     investment_decision = Column(String, default="pending")
 
     # Relationship
     pitch = relationship("Pitch", back_populates="pitch_data")
-

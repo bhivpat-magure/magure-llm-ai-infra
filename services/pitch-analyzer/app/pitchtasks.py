@@ -61,18 +61,41 @@ def process_pitch(self, pitch_id: str, file_path: str, model: str = "gpt-4o"):
 
     try:
         prompt = (
-            "You are a startup analyst assistant. A user uploaded a pitch deck PDF. "
-            "Extract the following:\n"
-            "- Company\n"
-            "- Industry\n"
-            "- Insight Summary (100 words)\n"
-            "- Strengths (1–3 bullet points)\n"
-            "- Weaknesses (1–3 bullet points)\n"
-            "- Revenue (state as-is or 'AI Estimated')\n"
-            "- ARR\n"
-            "- Total Turnover\n"
-            "- Any other relevant extras\n\n"
-            "If any item is missing and cannot be reasonably estimated, return 'Data not found'."
+            "You are a startup analyst assistant. A user has uploaded a pitch deck PDF. "
+            "Extract the following key details from the document:\n\n"
+
+            "1. Company\n"
+            "2. Industry\n"
+            "3. Insight Summary (approx. 100 words)\n"
+            "4. Strengths (1–3 bullet points)\n"
+            "5. Weaknesses (1–3 bullet points)\n"
+            "6. Revenue (state as-is or 'AI Estimated')\n"
+            "7. ARR (Annual Recurring Revenue)\n"
+            "8. Total Turnover\n"
+            "9. Financial Growth:\n"
+            "   - Month-over-Month (MoM) Revenue Growth\n"
+            "   - Year-over-Year (YoY) Revenue Growth\n"
+            "10. Market Insights:\n"
+            "   - Market Capitalization (Market Cap)\n"
+            "   - Total Addressable Market (TAM)\n"
+            "   - Total Finance Flow in the Sector\n"
+            "11. Technology Used\n"
+            "12. Broad Operational Sector\n"
+            "13. Team:\n"
+            "   - Team Size\n"
+            "   - Brief details of core team members (names, roles, experience if available)\n"
+            "14. Competition:\n"
+            "   - Who are the competitors?\n"
+            "   - What is the competitive landscape?\n"
+            "15. Market Share:\n"
+            "   - What is this company's market share within its sector?\n"
+            "16. Intellectual Property (IP):\n"
+            "   - Any patents, trademarks, or proprietary technologies?\n"
+            "17. 5-Year Growth Plan:\n"
+            "   - What are the company’s stated or implied goals for the next five years?\n"
+            "18. Any other relevant extras found in the pitch\n\n"
+
+            "If any item is missing or cannot be reasonably estimated, return 'Data not found'."
         )
 
         # Upload the PDF file to OpenAI
@@ -101,13 +124,8 @@ def process_pitch(self, pitch_id: str, file_path: str, model: str = "gpt-4o"):
         )
 
         content = response.output_text.strip()
-        print(
-            'cc', content
-        )
         extracted_data = parse_response_text(content)
-        print(
-            'ed', extracted_data
-        )
+
 
 
 
@@ -124,6 +142,33 @@ def process_pitch(self, pitch_id: str, file_path: str, model: str = "gpt-4o"):
             revenue=extracted_data["revenue"],
             arr=extracted_data["ARR"],
             total_turnover=extracted_data["total_turnover"],
+
+            # New financial growth fields
+            revenue_yoy_growth=extracted_data["revenue_yoy_growth"],
+            revenue_mom_growth=extracted_data["revenue_mom_growth"],
+
+            # New market insight fields
+            market_cap=extracted_data["market_cap"],
+            tam=extracted_data["TAM"],
+            total_finance_flow=extracted_data["total_finance_flow"],
+
+            # Technology and sector
+            technology=extracted_data["technology"],
+            operational_sector=extracted_data["operational_sector"],
+
+            # Team details
+            team_size=extracted_data["team_size"],
+            core_team_details=extracted_data["core_team_details"],
+
+            # Competitive landscape
+            competition=extracted_data["competition"],
+            market_share=extracted_data["market_share"],
+
+            # Intellectual property and growth plan
+            ip=extracted_data["IP"],
+            growth_plan_5_years=extracted_data["growth_plan_5_years"],
+
+            # Extras and default
             extras="\n".join(extracted_data["extras"]),
             investment_decision="pending"
         )

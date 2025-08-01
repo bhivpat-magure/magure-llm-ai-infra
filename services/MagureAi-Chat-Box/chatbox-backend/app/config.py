@@ -17,7 +17,7 @@ class Settings(BaseSettings):
     OPENAI_API_KEY: str 
     ANTHROPIC_API_KEY:str
     # Application settings
-    ENVIRONMENT: str = "development"
+    ENVIRONMENT: str = "production"
     
     @property
     def DATABASE_URL(self) -> str:
