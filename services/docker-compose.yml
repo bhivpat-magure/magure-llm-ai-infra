@@ -67,6 +67,7 @@ services:
       - redis
     volumes:
       - ./pitch-analyzer:/app
+      - ./pitch-analyzer/uploads:/app/uploads
 
   # ───── Chatbox Backend (FastAPI) ─────
   chatbox_postgres:

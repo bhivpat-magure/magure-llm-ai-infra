@@ -17,10 +17,10 @@ celery_app.conf.task_routes = {
     'pitchtasks.process_pitch': {'queue': 'pitch_tasks'}
 }
 
-# Prompt to be sent to the model (clean, structured)
 PITCH_EXTRACTION_PROMPT = """
 You are a startup analyst assistant. A user has uploaded a pitch deck PDF. Extract the following key details from the document:
-Please return your output in **valid JSON** format using the following fields: company, industry, insight_summary, strengths (list), weaknesses (list), revenue, arr, total_turnover, revenue_yoy_growth, revenue_mom_growth, market_cap, tam, total_finance_flow, technology, operational_sector, team_size, core_team_details (list), competition (object), market_share, ip, growth_plan_5_years, extras (list).
+Please return your output in **valid JSON** format using the following fields: company, industry, insight_summary, strengths (list), weaknesses (list), revenue, arr, total_turnover, technology, team_size, team_details, competition (object), market_share, ip_assets, growth_plan_5_years, extras (list).
+
 1. Company
 2. Industry
 3. Insight Summary (approx. 100 words)
@@ -29,28 +29,21 @@ Please return your output in **valid JSON** format using the following fields: c
 6. Revenue (state as-is or 'AI Estimated')
 7. ARR (Annual Recurring Revenue)
 8. Total Turnover
-9. Financial Growth:
-   - Month-over-Month (MoM) Revenue Growth
-   - Year-over-Year (YoY) Revenue Growth
-10. Market Insights:
-    - Market Capitalization (Market Cap)
-    - Total Addressable Market (TAM)
-    - Total Finance Flow in the Sector
-11. Technology Used
-12. Broad Operational Sector
-13. Team:
+9. Technology Used
+10. Team:
     - Team Size
     - Brief details of core team members (names, roles, experience if available)
-14. Competition:
+11. Competition:
     - Who are the competitors?
     - What is the competitive landscape?
-15. Market Share
-16. Intellectual Property (IP)
-17. 5-Year Growth Plan
-18. Any other relevant extras found in the pitch
+12. Market Share
+13. Intellectual Property (IP Assets)
+14. 5-Year Growth Plan
+15. Any other relevant extras found in the pitch
 
 If any item is missing or cannot be reasonably estimated, return 'Data not found'.
 """
+
 
 import re
 
@@ -108,32 +101,40 @@ def process_pitch(self, pitch_id: str, file_path: str, model: str = "gpt-4o"):
             company=parsed.get("company", ""),
             industry=parsed.get("industry", ""),
             insights=parsed.get("insight_summary", ""),
-            strengths="\n".join(parsed.get("strengths", [])),
-            weaknesses="\n".join(parsed.get("weaknesses", [])),
+
+            strengths="\n".join(parsed.get("strengths", [])) if isinstance(parsed.get("strengths"), list) else str(
+                parsed.get("strengths", "")),
+            weaknesses="\n".join(parsed.get("weaknesses", [])) if isinstance(parsed.get("weaknesses"), list) else str(
+                parsed.get("weaknesses", "")),
+            extras="\n".join(parsed.get("extras", [])) if isinstance(parsed.get("extras"), list) else str(
+                parsed.get("extras", "")),
+            competition=json.dumps(parsed.get("competition", {})) if isinstance(parsed.get("competition"),
+                                                                                dict) else str(
+                parsed.get("competition", "")),
+
             revenue=parsed.get("revenue", ""),
             arr=parsed.get("arr", ""),
             total_turnover=parsed.get("total_turnover", ""),
-            revenue_yoy_growth=parsed.get("revenue_yoy_growth", ""),
-            revenue_mom_growth=parsed.get("revenue_mom_growth", ""),
-            market_cap=parsed.get("market_cap", ""),
-            tam=parsed.get("tam", ""),
-            total_finance_flow=parsed.get("total_finance_flow", ""),
             technology=parsed.get("technology", ""),
-            operational_sector=parsed.get("operational_sector", ""),
             team_size=parsed.get("team_size", ""),
-            core_team_details=parsed.get("core_team_details", []),  # stored as JSONB
-            competition=parsed.get("competition", {}),  # stored as JSONB
+            team_details=json.dumps(parsed.get("team_details", [])) if isinstance(parsed.get("team_details"), (list, dict)) else str(parsed.get("team_details", "")),
+
+
             market_share=parsed.get("market_share", ""),
-            ip=parsed.get("ip", ""),
+            ip_assets=parsed.get("ip_assets", ""),
             growth_plan_5_years=parsed.get("growth_plan_5_years", ""),
-            extras="\n".join(parsed.get("extras", [])),
+
             investment_decision="pending"
         )
+
         db.add(pitch_data)
         db.commit()
 
+
+
     except Exception as e:
         db.rollback()
+        print("error", e);
         raise self.retry(exc=e, countdown=10)
 
     finally:
