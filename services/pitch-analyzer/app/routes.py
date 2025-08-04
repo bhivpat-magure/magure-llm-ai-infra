@@ -28,6 +28,24 @@ app.add_middleware(
 )
 
 
+'''
+saved_path = os.path.abspath(os.path.join(UPLOAD_DIR, f"{uuid4()}_{filename}"))
+with open(saved_path, "wb") as f:
+    f.write(await file.read())
+    f.flush()
+    os.fsync(f.fileno())
+
+# Confirm file exists before sending to Celery
+if not os.path.exists(saved_path):
+    raise Exception(f"File not saved properly: {saved_path}")
+
+print(f"Saved file at {saved_path}, calling Celery task...")
+
+process_pitch.delay(pitch_id, saved_path, model)
+
+
+'''
+
 router = APIRouter(prefix="/api3")
 
 UPLOAD_DIR = "uploads"
@@ -56,6 +74,7 @@ async def analyze_pitches(
         pitch_id = f"pitch_{uuid4()}"
         filename = secure_filename(file.filename)
         saved_path = os.path.join(UPLOAD_DIR, f"{uuid4()}_{filename}")
+
 
         try:
             with open(saved_path, "wb") as f:

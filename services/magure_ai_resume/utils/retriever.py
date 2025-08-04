@@ -66,7 +66,7 @@ def get_all_groups_with_indexes():
     return groups
 
 
-def retrieve_similar_chunks(query: str, k: int = 5, group: str = None):
+def retrieve_similar_chunks(query: str, k: int = 7, group: str = None):
     """
     Retrieve top-K similar chunks from FAISS.
     If group is None, searches across all groups.

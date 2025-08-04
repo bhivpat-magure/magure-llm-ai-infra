@@ -24,6 +24,7 @@ services:
     volumes:
       - ./magure_ai_resume:/app
       - ./magure_ai_resume:/app/uploaded_cvs
+      - ./magure_ai_resume/vector_store:/app/vector_store
 
   flask_celery:
     build:
@@ -39,6 +40,8 @@ services:
       - redis
     volumes:
       - ./magure_ai_resume:/app
+      - ./magure_ai_resume/vector_store:/app/vector_store
+      - ./magure_ai_resume:/app/uploaded_cvs
 
   fastapi_web:
     build:

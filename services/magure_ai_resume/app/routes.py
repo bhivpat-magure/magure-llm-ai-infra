@@ -169,7 +169,9 @@ def enrich_candidate_details(candidate_details):
         candidate["email"] = jd.email if jd else []
         candidate["phone"] = jd.phone if jd else []
         candidate["college"] = jd.college if jd else []
+        candidate["job_profile"] = jd.job_profile if jd else None
         candidate["total_experience"] = jd.total_experience if jd else None
+
 
 
 @api.route("/search_api", methods=["POST"])
@@ -180,8 +182,13 @@ def search_api():
         group_name = data.get("group")
 
         results = search_resume_matches(query, group_name)
+        print("result", results)
         prompt = build_prompt(query, results)
+        print("prompt", prompt)
+
         answer = query_with_openai_sdk(prompt)
+        print("answer", answer)
+
 
 
         # Enrich candidate details if needed
