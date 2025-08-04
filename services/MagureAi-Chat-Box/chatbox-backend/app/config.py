@@ -1,6 +1,6 @@
 import os
 from functools import lru_cache
-from pydantic_settings import BaseSettings  # ✅ Correct spelling and source
+from pydantic_settings import BaseSettings  
 
 class Settings(BaseSettings):
     # Database settings
