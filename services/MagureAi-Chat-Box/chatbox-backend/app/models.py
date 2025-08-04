@@ -4,6 +4,11 @@ from sqlalchemy.orm import relationship
 import uuid
 from datetime import datetime
 
+from sqlalchemy import String, ForeignKey, DateTime
+from sqlalchemy.orm import Mapped, mapped_column, relationship
+from typing import Optional
+import datetime
+
 from .database import Base
 
 class User(Base):
@@ -38,3 +43,22 @@ class Message(Base):
 
     chat = relationship("ChatSession", back_populates="messages")
     user = relationship("User", back_populates="messages")
+
+
+# New file_id column added to the Message model
+# New Schema to be used
+# class Message(Base):
+#     __tablename__ = "messages"
+
+#     id: Mapped[str] = mapped_column(String, primary_key=True, index=True)
+#     chat_id: Mapped[str] = mapped_column(ForeignKey("chat_sessions.id"))
+#     role: Mapped[str] = mapped_column(String)
+#     user_id: Mapped[str] = mapped_column(String, index=True)
+#     content: Mapped[str] = mapped_column(String)
+    
+#     # Add this new column
+#     file_id: Mapped[Optional[str]] = mapped_column(String, nullable=True)
+
+#     created_at: Mapped[datetime.datetime] = mapped_column(DateTime, default=datetime.datetime.utcnow)
+
+#     chat_session = relationship("ChatSession", back_populates="messages")

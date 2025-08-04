@@ -63,3 +63,30 @@ class TokenResponse(BaseModel):
     token_type: str
     user_id: str
     username: str
+
+# Updated Schema for File Based Message
+# File_id is optional
+
+class MessageBase(BaseModel):
+    chat_id: str
+    user_id: str
+    role: RoleEnum
+    content: str
+    modelType: ModelType
+
+class MessageCreate(MessageBase):
+    pass
+
+class MessageOut(BaseModel):
+    id: str
+    chat_id: str
+    role: str
+    user_id: str
+    content: str
+    created_at: datetime
+    
+    # Add this field to the output model
+    file_id: Optional[str] = None
+
+    class Config:
+        from_attributes = True # Or orm_mode = True for Pydantic v1
