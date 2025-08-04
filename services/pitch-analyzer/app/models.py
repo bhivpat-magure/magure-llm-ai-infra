@@ -2,6 +2,7 @@ from sqlalchemy import Column, String, Text, DateTime,ForeignKey,  Float
 from sqlalchemy.sql import func
 from app.db import Base
 from sqlalchemy.orm import relationship
+from datetime import datetime
 
 from sqlalchemy.dialects.postgresql import JSONB
     
@@ -15,6 +16,7 @@ class Pitch(Base):
     id = Column(String, primary_key=True, index=True)
     file_name = Column(String, nullable=False)
     file_path = Column(String, nullable=False)
+    created_at = Column(DateTime, default=datetime.utcnow)
 
     # Relationship to PitchData
     pitch_data = relationship("PitchData", back_populates="pitch", uselist=False)
