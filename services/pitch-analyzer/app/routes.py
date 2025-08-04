@@ -142,19 +142,69 @@ Investment Decision: {pitch_data.investment_decision or "N/A"}
         db.close()
 
 
+
 @router.get("/all-pitches")
 async def get_all_pitches():
     db: Session = SessionLocal()
     try:
         pitches = db.query(Pitch).all()
-        return [
-            {
-                "pitch_id":pitch.id,
+
+        response = []
+        for pitch in pitches:
+            pitch_data = pitch.pitch_data
+            response.append({
+                "pitch_id": pitch.id,
                 "file_name": pitch.file_name,
-                "file_path": f"/uploads/{os.path.basename(pitch.file_path)}"
-            }
-            for pitch in pitches
-        ]
+                "file_path": f"/uploads/{os.path.basename(pitch.file_path)}",
+                "company": pitch_data.company if pitch_data else None,
+                "industry": pitch_data.industry if pitch_data else None,
+                "insights": pitch_data.insights if pitch_data else None,
+            })
+
+        return response
+    finally:
+        db.close()
+
+
+
+
+
+@router.get("/pitch/{pitch_id}")
+async def get_pitch_details(pitch_id: str):
+    db: Session = SessionLocal()
+    try:
+        # Get Pitch with its related PitchData
+        pitch = db.query(Pitch).filter(Pitch.id == pitch_id).first()
+
+        if not pitch:
+            raise HTTPException(status_code=404, detail="Pitch not found")
+
+        pitch_data = pitch.pitch_data  # Thanks to relationship
+
+        # Create union of both Pitch and PitchData fields
+        result = {
+            "pitch_id": pitch.id,
+            "file_name": pitch.file_name,
+            "file_path": f"/uploads/{os.path.basename(pitch.file_path)}",
+            "created_at": pitch.created_at,
+        }
+
+        if pitch_data:
+            result.update({
+                "company": pitch_data.company,
+                "industry": pitch_data.industry,
+                "file_id": pitch_data.file_id,
+                "insights": pitch_data.insights,
+                "strengths": pitch_data.strengths,
+                "weaknesses": pitch_data.weaknesses,
+                "revenue": pitch_data.revenue,
+                "arr": pitch_data.arr,
+                "total_turnover": pitch_data.total_turnover,
+                "extras": pitch_data.extras,
+                "investment_decision": pitch_data.investment_decision,
+            })
+
+        return result
     finally:
         db.close()
 

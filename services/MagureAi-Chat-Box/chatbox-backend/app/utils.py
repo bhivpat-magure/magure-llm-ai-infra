@@ -66,7 +66,7 @@ def build_query(model_type: str, context: Union[str, list]) -> dict:
         return {
             "url": BASE_URL_OLLAMA,
             "json": {
-                "model": "llama3",
+                "model": "gemma3:1b",
                 "prompt": context,
                 "stream": False
             },

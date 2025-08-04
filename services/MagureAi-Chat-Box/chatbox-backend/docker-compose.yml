@@ -21,7 +21,7 @@ volumes:
 # for running the docker run the commands for the first time
 # docker-compose up -d
 # docker exec -it ollama bash
-# ollama pull llama3
+# ollama run gemma3:1b
 # exit
 
 # for the subsequent runs, you can use:
