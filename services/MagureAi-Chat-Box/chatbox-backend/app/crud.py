@@ -29,6 +29,11 @@ def get_user_by_username( username: str , db: Session):
 def create_chat_session(session: schemas.ChatSessionCreate, db: Session):
     db_session = models.ChatSession(**session.dict())
     
+    user = get_chat_sessions_by_user(session.user_id, db)
+    
+    if not user:
+        raise HTTPException(status_code=404, detail="User not found")
+    
     print(f"Creating chat session with title: {db_session.title}")
     
     db.add(db_session)
