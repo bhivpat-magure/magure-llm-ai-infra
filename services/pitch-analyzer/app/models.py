@@ -1,12 +1,12 @@
-from sqlalchemy import Column, String, Text, DateTime,ForeignKey,  Float
+from sqlalchemy import Column, String, Text, DateTime,ForeignKey,  Float, Boolean, Integer
 from sqlalchemy.sql import func
 from app.db import Base
 from sqlalchemy.orm import relationship
 from datetime import datetime
 
 from sqlalchemy.dialects.postgresql import JSONB
-    
-    
+
+
 # models.py
 
 
@@ -40,6 +40,10 @@ class PitchData(Base):
     total_turnover = Column(String)
     extras = Column(Text)
     investment_decision = Column(String, default="pending")
+
+    parsed = Column(Boolean, default=False)
+    attempts = Column(Integer, default=0)
+    last_error = Column(Text, nullable=True)
 
     # New fields from your follow-up request
     technology = Column(Text, nullable=True)

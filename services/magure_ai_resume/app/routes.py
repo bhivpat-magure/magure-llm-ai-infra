@@ -463,6 +463,28 @@ def get_json_data(cv_id):
     }), 200
 
 
+
+
+@api.route("/resume-processing", methods=["GET"])
+def get_processing_info():
+    try:
+        # Total CVs uploaded
+        total_cvs = db.session.query(UploadedCV).count()
+
+        # Total parsed CVs
+        parsed_cvs = db.session.query(JsonData).filter_by(parsed=1).count()
+
+        # Pending = total - parsed
+        pending_cvs = total_cvs - parsed_cvs
+
+        return jsonify({
+            "total_cvs": total_cvs,
+            "parsed_cvs": parsed_cvs,
+            "pending_cvs": pending_cvs
+        }), 200
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
 @api.route("/filters/meta", methods=["GET"])
 def get_filter_metadata():
     try:
