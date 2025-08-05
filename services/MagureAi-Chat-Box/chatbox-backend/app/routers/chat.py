@@ -39,8 +39,8 @@ def post_message(message: schemas.MessageCreate, db: Session = Depends(database.
         
         if len(past_messages) == 1:
             # Update chat title if it's the first message
-
-            chat = db.query(models.ChatSession).filter(models.ChatSession.id == message.chat_id).first()
+            print("Setting chat title to first user message")
+            chat = utils.get_chat_by_id(message.chat_id, db)
 
             if not chat:
                 raise HTTPException(status_code=404, detail="Chat session not found")
@@ -106,3 +106,34 @@ def get_user_chats(user_id: str, db: Session = Depends(database.get_db)):
 @router.get("/messages/{chat_id}", response_model=list[schemas.MessageOut])
 def get_chat_messages(chat_id: str, db: Session = Depends(database.get_db)):
     return crud.get_messages_by_chat_id(chat_id,db)
+
+
+@router.put("/chat_sessions/rename",response_model=schemas.ChatSessionOut)
+def rename_chat_session(session : schemas.ChatSessionRename, db: Session = Depends(database.get_db)):
+    print("Renaming chat session with ID:", session.chat_id)
+    
+    # Get the chat session to ensure it exists
+    chat = utils.get_chat_by_id(session.chat_id, db)
+    
+    if not chat:
+        raise HTTPException(status_code=404, detail="No such chat session exists")
+    
+    chat.title = session.title
+    db.commit()
+    db.refresh(chat)
+    
+    return chat
+
+@router.delete("/chat_sessions/{chat_id}")
+def delete_chat_session(chat_id: str, db: Session = Depends(database.get_db)):
+        
+    # Get the chat session to ensure it exists
+    chat = utils.get_chat_by_id(chat_id, db)
+    
+    if not chat:
+        raise HTTPException(status_code=404, detail="No such chat session exists")
+    
+    db.delete(chat)
+    db.commit()
+    
+    return {"detail": "Chat session deleted successfully"}

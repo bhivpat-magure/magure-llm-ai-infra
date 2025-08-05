@@ -5,6 +5,7 @@ from jose import jwt
 from datetime import datetime, timedelta
 from passlib.context import CryptContext
 from .config import settings
+from .models import ChatSession
 
 BASE_URL_OLLAMA  = "http://ollama:11434/api/generate" if settings.ENVIRONMENT == 'production' else "http://localhost:11434/api/generate"
 
@@ -106,3 +107,7 @@ def build_query(model_type: str, context: Union[str, list]) -> dict:
 
     else:
         raise HTTPException(status_code=422, detail=f"Unsupported model type: {model_type}")
+
+def get_chat_by_id(chat_id: str, db):
+    chat = db.query(ChatSession).filter(ChatSession.id == chat_id).first()
+    return chat

@@ -63,6 +63,10 @@ class TokenResponse(BaseModel):
     token_type: str
     user_id: str
     username: str
+    
+class ChatSessionRename(BaseModel):
+    title: str  
+    chat_id: UUID
 
 # Updated Schema for File Based Message
 # File_id is optional
