@@ -37,20 +37,24 @@ def post_message(message: schemas.MessageCreate, db: Session = Depends(database.
 
         past_messages = crud.get_messages_by_chat_id(message.chat_id, db)
         
+        if len(past_messages) == 1:
+            # Update chat title if it's the first message
+
+            chat = db.query(models.ChatSession).filter(models.ChatSession.id == message.chat_id).first()
+
+            if not chat:
+                raise HTTPException(status_code=404, detail="Chat session not found")
+
+            chat.title = message.content  # Set title to first user message
+            
+            db.flush()
+
         model_type = message.modelType.value if isinstance(message.modelType, schemas.ModelType) else message.modelType
         
         context = utils.build_context(model_type,past_messages)
         
-        # print("<============================ context ========================================>")
-        # print("The context is ===============================> " , context)
-        # print("<===========================================================================>")
-        
         query = utils.build_query(model_type,context)
-        
-        # print("<============================= query ==========================================>")
-        # print("The query is ===========================> ", query)
-        # print("<==============================================================================>")
-        
+    
         
         response = requests.post(
             query["url"],
@@ -71,9 +75,7 @@ def post_message(message: schemas.MessageCreate, db: Session = Depends(database.
         else:
             raise HTTPException(status_code=422, detail=f"Unsupported model type: {model_type}")
 
-        # print("=========================================================")
-        # print("The assistant text is =======================> " , assistant_text)
-        # print("==========================================================")
+
         assistant_msg = models.Message(
             id=str(uuid.uuid4()),
             chat_id=message.chat_id,
