@@ -114,13 +114,13 @@ def build_prompt(question: str, retrieved_chunks: list[dict]) -> str:
 
     full_context = "\n\n".join(context_blocks)
 
-    return f"""You are an HR assistant that answers questions based only on resume (CV) information.
+    return f"""You are an HR assistant that finds candidate based only on resume (CV) information.
 
 Context:
 {full_context}
 
 Instructions:
-- Use only the provided context to answer the question.
+- Use only the provided context to answer the question or find the candidate matching the query.
 
 1. Return your answer in ***valid JSON format*** with two main keys:
    - "summary": a string that begins with "Based on the provided context, ..." if and only if there is at least 1 suitable 
@@ -139,7 +139,7 @@ Instructions:
 
 2. The format must be **clean JSON** — no extra commentary, no markdown, no backticks, no `\\n`, no slashes. Only valid JSON.
 
-Question:
+Query:
 {question}
 
 Answer:

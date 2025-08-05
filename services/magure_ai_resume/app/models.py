@@ -10,6 +10,7 @@ class Group(db.Model):
 
     cvs = db.relationship("UploadedCV", backref="group_rel", lazy=True)
 
+
     def as_dict(self):
         return {"id": self.id, "name": self.name, "created_at": self.created_at.isoformat()}
 
@@ -27,6 +28,9 @@ class UploadedCV(db.Model):
     cloud_url = db.Column(db.String(500), nullable=True)
     comment = db.Column(db.Text, nullable=True)
     commented_at = db.Column(db.DateTime, nullable=True)
+    json_data = db.relationship(
+        "JsonData", backref="cv", lazy=True, cascade="all, delete-orphan"
+    )
 
     def as_dict(self):
         return {
@@ -71,4 +75,4 @@ class JsonData(db.Model):
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
     updated_at = db.Column(db.DateTime, onupdate=datetime.utcnow)
 
-    cv = db.relationship("UploadedCV", backref="json_data_rel")
+

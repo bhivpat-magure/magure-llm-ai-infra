@@ -291,6 +291,8 @@ def get_cvs():
             "total_experience": jd.total_experience or "Data not found"
         })
 
+
+
         # ─── 4. Filter by CV ID ───
         if "cv_id" in data:
             if int(data["cv_id"]) != cv.id:
@@ -373,8 +375,10 @@ def get_cvs():
                 cv_dict["days_available"] = "Invalid date format"
         else:
             cv_dict["days_available"] = "Currently Working"
+            
 
         results.append(cv_dict)
+
 
     return jsonify(results), 200
 
@@ -392,6 +396,8 @@ def download(cv_id):
 @api.route("/clear_all", methods=["DELETE"])
 def clear_all():
     UploadedCV.query.delete()
+    JsonData.query.delete()
+
     Group.query.delete()
     db.session.commit()
 
@@ -408,14 +414,29 @@ def clear_all():
 @api.route("/delete/<int:cv_id>", methods=["DELETE"])
 def delete(cv_id):
     cv = UploadedCV.query.get_or_404(cv_id)
+
     try:
-        os.remove(cv.filepath)
+        # Delete file from disk
+        if os.path.exists(cv.filepath):
+            os.remove(cv.filepath)
+
+        # Delete associated JSON data
+        json_entry = JsonData.query.filter_by(cv_id=cv.id).first()
+        if json_entry:
+            db.session.delete(json_entry)
+
+        # Delete from UploadedCV
         delete_cv_data(cv.stored_filename, group=cv.group_rel.name)
         db.session.delete(cv)
+        # Commit everything
         db.session.commit()
-        return jsonify({"message": f"Deleted {cv.original_filename}"}), 200
+
+        return jsonify({"message": f"Deleted {cv.original_filename} and associated JSON data"}), 200
+
     except Exception as e:
+        db.session.rollback()
         return jsonify({"error": str(e)}), 500
+
 
 @api.route("/cv/<int:cv_id>/comment", methods=["POST"])
 def add_comment(cv_id):

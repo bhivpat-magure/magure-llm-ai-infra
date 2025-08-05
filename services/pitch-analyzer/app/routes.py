@@ -221,11 +221,19 @@ async def get_pitch_details(pitch_id: str):
                 "total_turnover": pitch_data.total_turnover,
                 "extras": pitch_data.extras,
                 "investment_decision": pitch_data.investment_decision,
+                "technology": pitch_data.technology,
+                "team_size": pitch_data.team_size,
+                "team_details": pitch_data.team_details,
+                "competition": pitch_data.competition,
+                "market_share": pitch_data.market_share,
+                "ip_assets": pitch_data.ip_assets,
+                "growth_plan_5_years": pitch_data.growth_plan_5_years,
             })
 
         return result
     finally:
         db.close()
+
 
 
 
