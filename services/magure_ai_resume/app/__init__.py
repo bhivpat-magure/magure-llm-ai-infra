@@ -143,21 +143,11 @@ celery.conf.task_routes = {
 
 # Define routes that don't require JWT
 EXCLUDED_PATHS = [
-    "/api/upload_cv",
-    "/api/upload_jd",
-    "/api/clear_all",
-    "/api/delete",
-    "/api/cvs",
-    "/api/filters/meta",
-    "/api/cv_json_union/all",
-    "/api/download",
-    "/api/uploads",
-    "/api/cv/",
     "/docs",
     "/openapi.json",
 
 ]
-'''
+
 
 @app.before_request
 def jwt_auth_middleware():
@@ -186,7 +176,7 @@ def jwt_auth_middleware():
     except JWTError as e:
         return jsonify({"detail": "Invalid token", "error": str(e)}), 401
 
-'''
+
 # ─── Register Routes ───────────────────────────────────────
 from app.routes import api
 app.register_blueprint(api, url_prefix='/api')
