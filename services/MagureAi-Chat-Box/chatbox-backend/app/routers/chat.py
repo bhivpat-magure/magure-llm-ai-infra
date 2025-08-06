@@ -27,8 +27,13 @@ def post_message(message: schemas.MessageCreate, db: Session = Depends(database.
             role = message.role.value if isinstance(message.role, schemas.RoleEnum) else message.role,
             user_id=message.user_id,
             content=message.content,
-            created_at=datetime.utcnow()
+            created_at=utils.get_current_time()  
         )
+        
+        
+        formatted_time = user_msg.created_at.strftime("%I:%M %p")
+
+        print("THE TIME IS===================>",formatted_time)
         
         db.add(user_msg)
         db.flush() 
@@ -82,7 +87,7 @@ def post_message(message: schemas.MessageCreate, db: Session = Depends(database.
             role="assistant",
             user_id=message.user_id,  # or None if assistant has no user_id
             content=assistant_text,
-            created_at=datetime.utcnow()
+            created_at=utils.get_current_time()
         )
 
         db.add(assistant_msg)
