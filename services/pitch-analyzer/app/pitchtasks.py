@@ -69,8 +69,22 @@ def parse_response_text(content: str) -> dict:
 def process_pitch(self, pitch_id: str, file_path: str, model: str = "gpt-4o"):
     db = SessionLocal()
     file_id = None
+    pitch_data = db.query(PitchData).filter_by(pitch_id=pitch_id).first()
 
     try:
+        if not pitch_data:
+            pitch_data = PitchData(
+                id=str(uuid4()),
+                pitch_id=pitch_id,
+                attempts=0  # initialize if first time
+            )
+            db.add(pitch_data)
+            db.commit()
+            db.refresh(pitch_data)
+
+        pitch_data.attempts = (pitch_data.attempts or 0) + 1
+        db.commit()
+
         # Upload file to OpenAI
         with open(file_path, "rb") as f:
             upload = client.files.create(file=f, purpose="user_data")
@@ -92,49 +106,54 @@ def process_pitch(self, pitch_id: str, file_path: str, model: str = "gpt-4o"):
         parsed = parse_response_text(content)
 
         print("🔍 GPT Output:\n", content)
-        print("🔍 GPT Parsed Output:\n", parsed, parsed["company"],parsed["industry"])
+        print("🔍 GPT Parsed Output:\n", parsed, parsed["company"], parsed["industry"])
 
-        pitch_data = PitchData(
-            id=str(uuid4()),
-            pitch_id=pitch_id,
-            file_id=file_id,
-            company=parsed.get("company", ""),
-            industry=parsed.get("industry", ""),
-            insights=parsed.get("insight_summary", ""),
+        # Update pitch_data
+        pitch_data.file_id = file_id
+        pitch_data.company = parsed.get("company", "")
+        pitch_data.industry = parsed.get("industry", "")
+        pitch_data.insights = parsed.get("insight_summary", "")
+        pitch_data.strengths = "\n".join(parsed.get("strengths", [])) if isinstance(parsed.get("strengths"), list) else str(parsed.get("strengths", ""))
+        pitch_data.weaknesses = "\n".join(parsed.get("weaknesses", [])) if isinstance(parsed.get("weaknesses"), list) else str(parsed.get("weaknesses", ""))
+        pitch_data.extras = "\n".join(parsed.get("extras", [])) if isinstance(parsed.get("extras"), list) else str(parsed.get("extras", ""))
+        pitch_data.competition = json.dumps(parsed.get("competition", {})) if isinstance(parsed.get("competition"), dict) else str(parsed.get("competition", ""))
+        pitch_data.revenue = parsed.get("revenue", "")
+        pitch_data.arr = parsed.get("arr", "")
+        pitch_data.total_turnover = parsed.get("total_turnover", "")
+        pitch_data.technology = parsed.get("technology", "")
+        pitch_data.team_size = parsed.get("team_size", "")
+        pitch_data.team_details = json.dumps(parsed.get("team_details", [])) if isinstance(parsed.get("team_details"), (list, dict)) else str(parsed.get("team_details", ""))
+        pitch_data.market_share = parsed.get("market_share", "")
+        pitch_data.ip_assets = parsed.get("ip_assets", "")
+        pitch_data.growth_plan_5_years = parsed.get("growth_plan_5_years", "")
+        pitch_data.investment_decision = "pending"
 
-            strengths="\n".join(parsed.get("strengths", [])) if isinstance(parsed.get("strengths"), list) else str(
-                parsed.get("strengths", "")),
-            weaknesses="\n".join(parsed.get("weaknesses", [])) if isinstance(parsed.get("weaknesses"), list) else str(
-                parsed.get("weaknesses", "")),
-            extras="\n".join(parsed.get("extras", [])) if isinstance(parsed.get("extras"), list) else str(
-                parsed.get("extras", "")),
-            competition=json.dumps(parsed.get("competition", {})) if isinstance(parsed.get("competition"),
-                                                                                dict) else str(
-                parsed.get("competition", "")),
+        # Mark success
+        pitch_data.parsed = True
+        pitch_data.last_error = None
 
-            revenue=parsed.get("revenue", ""),
-            arr=parsed.get("arr", ""),
-            total_turnover=parsed.get("total_turnover", ""),
-            technology=parsed.get("technology", ""),
-            team_size=parsed.get("team_size", ""),
-            team_details=json.dumps(parsed.get("team_details", [])) if isinstance(parsed.get("team_details"), (list, dict)) else str(parsed.get("team_details", "")),
-
-
-            market_share=parsed.get("market_share", ""),
-            ip_assets=parsed.get("ip_assets", ""),
-            growth_plan_5_years=parsed.get("growth_plan_5_years", ""),
-
-            investment_decision="pending"
-        )
-
-        db.add(pitch_data)
         db.commit()
-
-
 
     except Exception as e:
         db.rollback()
-        print("error", e);
+
+        if not pitch_data:
+            pitch_data = PitchData(
+                id=str(uuid4()),
+                pitch_id=pitch_id,
+                attempts=1,
+                parsed=False,
+                last_error=str(e)
+            )
+            db.add(pitch_data)
+        else:
+            pitch_data.parsed = False
+            pitch_data.last_error = str(e)
+            pitch_data.attempts = (pitch_data.attempts or 0) + 1
+
+        db.commit()
+
+        print("❌ Error processing pitch:", e)
         raise self.retry(exc=e, countdown=10)
 
     finally:

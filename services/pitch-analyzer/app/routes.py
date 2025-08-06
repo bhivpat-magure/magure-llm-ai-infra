@@ -260,5 +260,29 @@ async def download_file(pitch_id: str = Path(...)):
         db.close()
 
 
+
+
+@router.get("/pitch-processing")
+async def get_pitch_processing_info():
+    db: Session = SessionLocal()
+    try:
+        # Total pitch decks uploaded
+        total_pitches = db.query(Pitch).count()
+
+        # Total parsed pitch decks
+        parsed_pitches = db.query(PitchData).filter_by(parsed=True).count()
+
+        # Pending = total - parsed
+        pending_pitches = total_pitches - parsed_pitches
+
+        return {
+            "total_pitches": total_pitches,
+            "parsed_pitches": parsed_pitches,
+            "pending_pitches": pending_pitches
+        }
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+    finally:
+        db.close()
 # Include router
 app.include_router(router)

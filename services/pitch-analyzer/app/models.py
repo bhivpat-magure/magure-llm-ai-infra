@@ -45,6 +45,8 @@ class PitchData(Base):
     attempts = Column(Integer, default=0)
     last_error = Column(Text, nullable=True)
 
+
+
     # New fields from your follow-up request
     technology = Column(Text, nullable=True)
     team_size = Column(String, nullable=True)
