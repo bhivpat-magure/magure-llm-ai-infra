@@ -56,9 +56,6 @@ def get_messages_by_chat_id( chat_id: str,db: Session):
     
     return db.query(models.Message).filter(models.Message.chat_id == chat_id).order_by(models.Message.created_at).all()
 
-def create_message(db: Session, message: schemas.MessageCreate):
-    msg = models.Message(id=str(uuid.uuid4()), **message.dict())
-    db.add(msg)
-    db.commit()
-    db.refresh(msg)
-    return msg
+def get_chat_by_id(chat_id: str, db):
+    chat = db.query(models.ChatSession).filter(models.ChatSession.id == chat_id).first()
+    return chat
