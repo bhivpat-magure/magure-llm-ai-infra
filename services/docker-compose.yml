@@ -55,6 +55,8 @@ services:
     environment:
       - OPENAI_API_KEY=${OPENAI_API_KEY}
       - QDRANT_HOST=${QDRANT_HOST}
+      - SECRET_KEY=${SECRET_KEY}
+      - JWT_ALGORITHM=${JWT_ALGORITHM}
     ports:
       - "8000:8000"
     depends_on:
@@ -70,6 +72,9 @@ services:
     command: celery -A app.pitchtasks worker -Q pitch_tasks  --pool=threads --concurrency=4 --loglevel=info
     environment:
       - OPENAI_API_KEY=${OPENAI_API_KEY}
+      - QDRANT_HOST=${QDRANT_HOST}
+      - SECRET_KEY=${SECRET_KEY}
+      - JWT_ALGORITHM=${JWT_ALGORITHM}
     depends_on:
       - redis
     volumes:
