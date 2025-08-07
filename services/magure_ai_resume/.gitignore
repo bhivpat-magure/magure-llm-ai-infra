@@ -3,3 +3,5 @@ venv/
 vector_store/
 uploaded_cvs/
 .env
+__pycache__/
+*.pyc

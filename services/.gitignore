@@ -3,3 +3,6 @@ magure_ai_resume/app/uploaded_cvs
 magure_ai_resume/vector_store
 pitch-analyzer/app/uploaded_pitches
 pitch-analyzer/uploads
+magure_ai_resume/app/__pycache__/
+magure_ai_resume/app/*.pyc
+*.pyc
