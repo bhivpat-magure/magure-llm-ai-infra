@@ -153,11 +153,16 @@ EXCLUDED_PATHS = [
 @app.before_request
 def jwt_auth_middleware():
     origin = request.headers.get("Origin")
-    print(f"Incoming request from Origin: {origin}")  # 👈 This prints the origin
+    print(f"Incoming request from Origin: {origin}")  # ✅ Will log the Origin header
+
+    # ✅ Allow OPTIONS requests (CORS preflight) without auth
+    if request.method == "OPTIONS":
+        print("Skipping JWT check for preflight OPTIONS request")
+        return
 
     path = request.path
 
-    # Skip auth check for excluded routes
+    # ✅ Skip auth for excluded paths or static files
     if any(path.startswith(p) for p in EXCLUDED_PATHS) or request.endpoint == 'static':
         return
 
@@ -179,6 +184,7 @@ def jwt_auth_middleware():
             return jsonify({"detail": "Token missing user_id (sub)"}), 401
     except JWTError as e:
         return jsonify({"detail": "Invalid token", "error": str(e)}), 401
+
 
 
 # ─── Register Routes ───────────────────────────────────────
