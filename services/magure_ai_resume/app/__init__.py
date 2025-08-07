@@ -107,7 +107,8 @@ def upload_to_cloudinary(filepath, resource_type="auto", folder="resumes"):
 
 # ─── Flask App Setup ──────────────────────────────────────
 app = Flask(__name__)
-CORS(app)
+CORS(app, resources={r"/*": {"origins": "https://rag-mag.vercel.app"}}, supports_credentials=True)
+
 
 basedir = os.path.abspath(os.path.dirname(__file__ + '/../'))
 UPLOAD_FOLDER = os.path.join(basedir, 'uploaded_cvs')

@@ -16,8 +16,79 @@ import shutil
 import logging
 import re
 
+
+ACTION=[
+        "UPLOAD_RESUME",
+        "FETCH_RESUMES",
+        "DELETE_RESUME",
+        "VIEW_RESUME",
+        "SEARCH_CANDIDATE",
+        "UPLOAD_JOBDESCRIPTION",
+        "RESUME_PROCESSING_STATUS",
+        "ADD_COMMENT",
+        "GET_COMMENT",
+        "DELETE_COMMENT",
+        "FETCH_GROUPS",
+        "ADD_GROUP",
+        "DELETE_GROUP",
+        ]
+
 logger = logging.getLogger(__name__)
 api = Blueprint('api', __name__)
+
+
+# 🔁 Shared logic extracted here
+def search_resume_matches(query, group_name):
+    if not query:
+        raise ValueError("No query provided")
+
+    results = []
+    if not group_name or group_name.lower() in ["null", "undefined", ""]:
+        for grp in Group.query.all():
+            results.extend(retrieve_similar_chunks(query, k=5, group=grp.name))
+    else:
+        group_obj = Group.query.filter_by(name=group_name).first()
+        if not group_obj:
+            raise LookupError(f"Group '{group_name}' not found")
+        results = retrieve_similar_chunks(query, k=5, group=group_obj.name)
+
+    return results
+
+
+def enrich_candidate_details(candidate_details):
+    if not candidate_details:
+        return
+
+    file_names = [c.get("file_name") for c in candidate_details if "file_name" in c]
+
+    # Fetch CVs
+    cvs = UploadedCV.query.filter(UploadedCV.stored_filename.in_(file_names)).all()
+    cv_map = {cv.stored_filename: cv for cv in cvs}
+
+    # Fetch corresponding JsonData
+    cv_ids = [cv.id for cv in cvs]
+    json_data_list = JsonData.query.filter(JsonData.cv_id.in_(cv_ids)).all()
+    jd_map = {jd.cv_id: jd for jd in json_data_list}
+
+    # Enrich each candidate
+    for candidate in candidate_details:
+        file_name = candidate.get("file_name")
+        cv = cv_map.get(file_name)
+        if not cv:
+            continue
+        jd = jd_map.get(cv.id)
+
+        candidate["cv_id"] = cv.id
+        candidate["comment"] = cv.comment
+        candidate["commented_at"] = cv.commented_at.isoformat() if cv.commented_at else None
+        candidate["email"] = jd.email if jd else []
+        candidate["phone"] = jd.phone if jd else []
+        candidate["college"] = jd.college if jd else []
+        candidate["job_profile"] = jd.job_profile if jd else None
+        candidate["total_experience"] = jd.total_experience if jd else None
+
+
+
 
 def allowed_file(filename):
     return '.' in filename and filename.rsplit('.', 1)[1].lower() in {'pdf', 'docx'}
@@ -120,57 +191,6 @@ def upload_cv():
         logger.error(traceback.format_exc())
         return jsonify({"error": str(e)}), 500
 
-
-
-# 🔁 Shared logic extracted here
-def search_resume_matches(query, group_name):
-    if not query:
-        raise ValueError("No query provided")
-
-    results = []
-    if not group_name or group_name.lower() in ["null", "undefined", ""]:
-        for grp in Group.query.all():
-            results.extend(retrieve_similar_chunks(query, k=5, group=grp.name))
-    else:
-        group_obj = Group.query.filter_by(name=group_name).first()
-        if not group_obj:
-            raise LookupError(f"Group '{group_name}' not found")
-        results = retrieve_similar_chunks(query, k=5, group=group_obj.name)
-
-    return results
-
-
-def enrich_candidate_details(candidate_details):
-    if not candidate_details:
-        return
-
-    file_names = [c.get("file_name") for c in candidate_details if "file_name" in c]
-
-    # Fetch CVs
-    cvs = UploadedCV.query.filter(UploadedCV.stored_filename.in_(file_names)).all()
-    cv_map = {cv.stored_filename: cv for cv in cvs}
-
-    # Fetch corresponding JsonData
-    cv_ids = [cv.id for cv in cvs]
-    json_data_list = JsonData.query.filter(JsonData.cv_id.in_(cv_ids)).all()
-    jd_map = {jd.cv_id: jd for jd in json_data_list}
-
-    # Enrich each candidate
-    for candidate in candidate_details:
-        file_name = candidate.get("file_name")
-        cv = cv_map.get(file_name)
-        if not cv:
-            continue
-        jd = jd_map.get(cv.id)
-
-        candidate["cv_id"] = cv.id
-        candidate["comment"] = cv.comment
-        candidate["commented_at"] = cv.commented_at.isoformat() if cv.commented_at else None
-        candidate["email"] = jd.email if jd else []
-        candidate["phone"] = jd.phone if jd else []
-        candidate["college"] = jd.college if jd else []
-        candidate["job_profile"] = jd.job_profile if jd else None
-        candidate["total_experience"] = jd.total_experience if jd else None
 
 
 

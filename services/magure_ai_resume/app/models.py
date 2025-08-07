@@ -76,3 +76,22 @@ class JsonData(db.Model):
     updated_at = db.Column(db.DateTime, onupdate=datetime.utcnow)
 
 
+
+class AuditLog(db.Model):
+    __tablename__ = 'audit_logs'
+
+    id = db.Column(db.Integer, primary_key=True)
+    user_id = db.Column(db.Integer, nullable=True)  # Null for system actions
+    action = db.Column(db.String(50), nullable=False)  # e.g., 'UPDATE', 'CREATE'
+    ai_model = db.Column(db.String(100), nullable=True)  # e.g., 'User'
+    request = db.Column(db.String(100), nullable=False)  # e.g., ID of the changed row
+    response = db.Column(db.JSON, nullable=False)
+    tables = db.Column(db.String(200), nullable=True)
+    affected_records = db.Column(db.String(200), nullable=True)
+    timestamp = db.Column(db.DateTime, default=datetime.utcnow)
+
+
+
+
+
+

@@ -19,13 +19,15 @@ from app import rag_utils
 from celery_app import make_celery
 celery = make_celery()
 # Add this right after you define `app`
+
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],  # or specify ["http://localhost:3000", "http://yourdomain.com"]
+    allow_origins=["https://rag-mag.vercel.app"],  # ✅ correct format
     allow_credentials=True,
     allow_methods=["*"],
-    allow_headers=["*"],
+    allow_headers=["*"],  # ✅ includes Authorization header by default
 )
+
 
 
 '''
