@@ -1,11 +1,13 @@
 import os
 from functools import lru_cache
-from pydantic_settings import BaseSettings  
+from pydantic_settings import BaseSettings
+from urllib.parse import quote_plus  
 
 class Settings(BaseSettings):
     # Database settings
     PGHOST: str
     PGDATABASE: str
+    PGPORT: int = 5432  # Default PostgreSQL port
     PGUSER: str
     PGPASSWORD: str
     PGSSLMODE: str = "disable"
@@ -18,13 +20,15 @@ class Settings(BaseSettings):
     ANTHROPIC_API_KEY:str
     # Application settings
     ENVIRONMENT: str = "production"
-    
+        
     @property
     def DATABASE_URL(self) -> str:
-        return (
-            f"postgresql://{self.PGUSER}:{self.PGPASSWORD}@{self.PGHOST}/"
-            f"{self.PGDATABASE}?sslmode={self.PGSSLMODE}"
-        )
+        password = quote_plus(self.PGPASSWORD)
+        url = f"postgresql://{self.PGUSER}:{password}@{self.PGHOST}/{self.PGDATABASE}"
+        if self.PGSSLMODE and self.PGSSLMODE != "disable":
+            url += f"?sslmode={self.PGSSLMODE}"
+        return url
+
     
     class Config:
         env_file = ".env"

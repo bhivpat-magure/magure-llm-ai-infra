@@ -28,7 +28,12 @@ class MessageOut(BaseModel):
     content: str
     role : RoleEnum = RoleEnum.user
     class Config:
-        from_attributes = True  # ✅ Fixed
+        from_attributes = True  
+
+class MessageOutWithChatId(BaseModel):
+    messages: List[MessageOut]
+    file_url: Optional[str] = None
+    file_name: Optional[str] = None
 
 class ChatSessionCreate(BaseModel):
     title: Optional[str] = None
@@ -38,9 +43,17 @@ class ChatSessionOut(BaseModel):
     id: UUID
     title: Optional[str]
     created_at: datetime
+    file_url: Optional[str] = None
+    file_name: Optional[str] = None
 
     class Config:
         from_attributes = True
+        
+
+class chatSessionRenameOut(BaseModel):
+    title: str  
+    chat_id: UUID
+    updated_at: datetime = datetime.now()
 
 class UserCreate(BaseModel):
     username: str

@@ -11,39 +11,47 @@ from .utils import get_current_time
 
 from .database import Base
 
-class User(Base):
-    __tablename__ = "users"
-    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
-    username = Column(String, unique=True, nullable=False)
-    password = Column(String, nullable=False)
-    created_at = Column(DateTime(timezone = True), default=get_current_time)
-
-    chat_sessions = relationship("ChatSession", back_populates="user", cascade="all, delete")
-    messages = relationship("Message", back_populates="user", cascade="all, delete")
 
 class ChatSession(Base):
     __tablename__ = "chat_sessions"
-    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
-    user_id = Column(UUID(as_uuid=True), ForeignKey("users.id", ondelete="CASCADE"), nullable=False)
-    title = Column(String, nullable=True)
-    created_at = Column(DateTime(timezone = True), default=get_current_time)
 
-    messages = relationship("Message", back_populates="chat", cascade="all, delete")
-    user = relationship("User", back_populates="chat_sessions")
-    
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    title = Column(String, nullable=True)
+    user_id = Column(UUID(as_uuid=True), nullable=False)
+
+    created_at = Column(DateTime(timezone=True), default=get_current_time)
+    updated_at = Column(DateTime(timezone=True), default=get_current_time, onupdate=get_current_time)
+
+    messages = relationship("Message", back_populates="chat", cascade="all, delete-orphan")
+    files = relationship("File", back_populates="chat", cascade="all, delete-orphan")
+
 
 class Message(Base):
     __tablename__ = "messages"
-    id = Column(String, primary_key=True)
-    chat_id = Column(UUID(as_uuid=True), ForeignKey("chat_sessions.id", ondelete="CASCADE"), nullable=False)
+
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    chat_id = Column(UUID(as_uuid=True), ForeignKey("chat_sessions.id", ondelete="CASCADE"))
     role = Column(String, nullable=False) 
     content = Column(Text, nullable=False)
-    created_at = Column(DateTime(timezone = True), default=get_current_time)
-    user_id = Column(UUID(as_uuid=True), ForeignKey("users.id", ondelete="CASCADE"), nullable=False)
+
+    created_at = Column(DateTime(timezone=True), default=get_current_time)
+    updated_at = Column(DateTime(timezone=True), default=get_current_time, onupdate=get_current_time)
 
     chat = relationship("ChatSession", back_populates="messages")
-    user = relationship("User", back_populates="messages")
 
+
+class File(Base):
+    __tablename__ = "files"
+
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    chat_id = Column(UUID(as_uuid=True), ForeignKey("chat_sessions.id", ondelete="CASCADE"))
+    file_url = Column(String, nullable=False)
+    file_name = Column(String, nullable=False)
+
+    created_at = Column(DateTime(timezone=True), default=get_current_time)
+    updated_at = Column(DateTime(timezone=True), default=get_current_time, onupdate=get_current_time)
+
+    chat = relationship("ChatSession", back_populates="files")
 
 # New file_id column added to the Message model
 # New Schema to be used

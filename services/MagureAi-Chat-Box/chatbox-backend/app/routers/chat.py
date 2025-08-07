@@ -22,7 +22,6 @@ def post_message(message: schemas.MessageCreate, db: Session = Depends(database.
             id=str(uuid.uuid4()),
             chat_id=message.chat_id,
             role = message.role.value if isinstance(message.role, schemas.RoleEnum) else message.role,
-            user_id=message.user_id,
             content=message.content,
             created_at=utils.get_current_time()  
         )
@@ -77,7 +76,6 @@ def post_message(message: schemas.MessageCreate, db: Session = Depends(database.
             id=str(uuid.uuid4()),
             chat_id=message.chat_id,
             role="assistant",
-            user_id=message.user_id,  # or None if assistant has no user_id
             content=assistant_text,
             created_at=utils.get_current_time()
         )
@@ -97,7 +95,7 @@ def post_message(message: schemas.MessageCreate, db: Session = Depends(database.
         raise HTTPException(status_code=500, detail=f"Failed to handle message: {e}")
 
 
-@router.put("/chat_sessions/rename",response_model=schemas.ChatSessionOut)
+@router.put("/chat_sessions/rename",response_model=schemas.chatSessionRenameOut)
 def rename_chat_session(session : schemas.ChatSessionRename, db: Session = Depends(database.get_db)):
     print("Renaming chat session with ID:", session.chat_id)
     
@@ -108,13 +106,20 @@ def rename_chat_session(session : schemas.ChatSessionRename, db: Session = Depen
         raise HTTPException(status_code=404, detail="No such chat session exists")
     
     chat.title = session.title
+    chat.updated_at = utils.get_current_time()
     db.commit()
     db.refresh(chat)
     
-    return chat
+    chat_rename_response = schemas.chatSessionRenameOut(
+        title=chat.title,
+        chat_id=chat.id,
+        updated_at=chat.updated_at
+    )
+    
+    return chat_rename_response
 
 
-@router.get("/messages/{chat_id}", response_model=list[schemas.MessageOut])
+@router.get("/messages/{chat_id}", response_model=schemas.MessageOutWithChatId)
 def get_chat_messages(chat_id: str, db: Session = Depends(database.get_db)):
     return crud.get_messages_by_chat_id(chat_id,db)
 
