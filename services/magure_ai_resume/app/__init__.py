@@ -152,6 +152,9 @@ EXCLUDED_PATHS = [
 
 @app.before_request
 def jwt_auth_middleware():
+    origin = request.headers.get("Origin")
+    print(f"Incoming request from Origin: {origin}")  # 👈 This prints the origin
+
     path = request.path
 
     # Skip auth check for excluded routes
