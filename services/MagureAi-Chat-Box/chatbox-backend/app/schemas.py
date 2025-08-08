@@ -43,12 +43,13 @@ class ChatSessionOut(BaseModel):
     id: UUID
     title: Optional[str]
     created_at: datetime
-    file_url: Optional[str] = None
-    file_name: Optional[str] = None
 
     class Config:
         from_attributes = True
         
+class ChatSessionOutWithFiles(ChatSessionOut):
+    file_url: Optional[str] = None
+    file_name: Optional[str] = None
 
 class chatSessionRenameOut(BaseModel):
     title: str  

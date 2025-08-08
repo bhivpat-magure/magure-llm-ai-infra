@@ -2,7 +2,6 @@
 from fastapi import HTTPException
 from sqlalchemy.orm import Session , joinedload
 from app import models, schemas , utils
-import uuid
 
 def create_user(user:schemas.UserCreate ,db: Session ):
     
@@ -74,12 +73,38 @@ def get_chat_sessions_by_user( user_id: str , db: Session):
 
 
 
-def get_messages_by_chat_id( chat_id: str,db: Session):
+def get_messages_by_chat_id( chat_id: str,db: Session,isFileRequest: bool = False):
     
-    print("The chat_id is: ", chat_id)
+   if not isFileRequest:
+       return db.query(models.Message).filter(models.Message.chat_id == chat_id).order_by(models.Message.created_at).all()
+   
+   else:
     
-    return db.query(models.Message).filter(models.Message.chat_id == chat_id).order_by(models.Message.created_at).all()
+        chat = (
+        db.query(models.ChatSession)
+        .options(
+            joinedload(models.ChatSession.messages),
+            joinedload(models.ChatSession.files)
+        )
+        .filter(models.ChatSession.id == chat_id)
+        .first()
+    )
 
+        if not chat:
+            raise HTTPException(status_code=404, detail="Chat session not found")
+
+        sorted_messages = sorted(chat.messages, key=lambda m: m.created_at)
+        message_out_list = [schemas.MessageOut.from_orm(msg) for msg in sorted_messages]
+        
+        print(f"Messages fetched for chat {chat_id}: {len(message_out_list)} messages")
+
+        first_file = chat.files[0] if chat.files else None
+
+        return schemas.MessageOutWithChatId(
+            messages=message_out_list,
+            file_url=first_file.file_url if first_file else None,
+            file_name=first_file.file_name if first_file else None
+        )
 
 
 def get_chat_by_id(chat_id: str, db):

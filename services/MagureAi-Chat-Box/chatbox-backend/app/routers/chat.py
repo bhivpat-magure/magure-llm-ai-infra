@@ -35,6 +35,7 @@ def post_message(message: schemas.MessageCreate, db: Session = Depends(database.
         
         past_messages = crud.get_messages_by_chat_id(message.chat_id, db)
         
+        
         if len(past_messages) == 1:
             # Update chat title if it's the first message
             print("Setting chat title to first user message")
@@ -50,7 +51,7 @@ def post_message(message: schemas.MessageCreate, db: Session = Depends(database.
         model_type = message.modelType.value if isinstance(message.modelType, schemas.ModelType) else message.modelType
         
         context = utils.build_context(model_type,past_messages)
-        
+            
         query = utils.build_query(model_type,context)
     
         
@@ -224,10 +225,10 @@ def rename_chat_session(session : schemas.ChatSessionRename, db: Session = Depen
 
 @router.get("/messages/{chat_id}", response_model=schemas.MessageOutWithChatId)
 def get_chat_messages(chat_id: str, db: Session = Depends(database.get_db)):
-    return crud.get_messages_by_chat_id(chat_id,db)
+    return crud.get_messages_by_chat_id(chat_id,db,isFileRequest= True)
 
 
-@router.get("/chat_sessions/user/{user_id}", response_model=list[schemas.ChatSessionOut])
+@router.get("/chat_sessions/user/{user_id}", response_model=list[schemas.ChatSessionOutWithFiles])
 def get_user_chats(user_id: str, db: Session = Depends(database.get_db)):
     return crud.get_chat_sessions_by_user(user_id,db)
 
@@ -235,7 +236,6 @@ def get_user_chats(user_id: str, db: Session = Depends(database.get_db)):
 @router.delete("/chat_sessions/delete/{chat_id}")
 def delete_chat_session(chat_id: str, db: Session = Depends(database.get_db)):
         
-    # Get the chat session to ensure it exists
     chat = crud.get_chat_by_id(chat_id, db)
     
     if not chat:
