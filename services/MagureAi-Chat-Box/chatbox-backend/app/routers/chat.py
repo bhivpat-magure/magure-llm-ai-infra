@@ -130,6 +130,7 @@ async def upload_and_chat(
         )
         db.add(file_record)
         db.flush()
+        db.commit()
 
         # Create and save user message with prompt
         # user_msg = models.Message(

@@ -7,9 +7,10 @@ from openai import OpenAI
 from anthropic import Anthropic
 from reportlab.pdfgen import canvas
 import magic # Requires python-magic library
+from ..config import settings
 
 # Initialize API clients
-openai_client = OpenAI()
+openai_client = OpenAI(api_key =settings.OPENAI_API_KEY)
 anthropic_client = Anthropic()
 
 

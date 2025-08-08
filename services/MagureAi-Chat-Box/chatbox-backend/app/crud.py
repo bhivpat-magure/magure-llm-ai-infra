@@ -61,7 +61,8 @@ def get_chat_sessions_by_user( user_id: str , db: Session):
     for session in sessions:
         
         first_file = session.files[0] if session.files else None
-        response.append(schemas.ChatSessionOut(
+        
+        response.append(schemas.ChatSessionOutWithFiles(
             id=session.id,
             title=session.title,
             created_at=session.created_at,
