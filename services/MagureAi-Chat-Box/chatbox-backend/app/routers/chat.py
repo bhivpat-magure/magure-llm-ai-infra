@@ -1,8 +1,10 @@
-from fastapi import APIRouter, Depends,HTTPException
+import os
+from fastapi import APIRouter, Depends, File, Form,HTTPException, UploadFile
 import uuid
 import requests
 from sqlalchemy.orm import Session
-from .. import models, schemas, database, crud , utils 
+from .. import models, schemas, database, crud , utils
+from . import file_handler
 
 
 models.Base.metadata.create_all(bind=database.engine)
@@ -93,6 +95,107 @@ def post_message(message: schemas.MessageCreate, db: Session = Depends(database.
     except Exception as e:
         db.rollback()  # Roll back if anything fails
         raise HTTPException(status_code=500, detail=f"Failed to handle message: {e}")
+
+# Create a prompt + file upload endpoint which will take in a file, prompt, chatID and model type 
+# Save the file in a temporary location which will be changed during production
+# Get the location of the file at saved location
+# Then we will have a File URL, File Name and chat ID, we need to write that in the DB
+# We need to Extract the Chat History from DB
+# Just like the above function post_message, we will extarct the context and query the model
+# Then we will return the response from the model
+@router.post("/upload_and_chat")
+async def upload_and_chat(
+    chat_id: str = Form(...),
+    model_type: str = Form(...),
+    prompt: str = Form(...),
+    file: UploadFile = File(...),
+    db: Session = Depends(database.get_db)
+):
+    try:
+        UPLOAD_DIR=os.getcwd() + '/uploads'
+        # Save the uploaded file temporarily
+        file_location = os.path.join(UPLOAD_DIR, file.filename)
+        print(file_location)
+        with open(file_location, "wb+") as file_object:
+            file_object.write(await file.read())
+
+        # Save file information to the database
+        file_record = models.File(
+            id=str(uuid.uuid4()),
+            chat_id=chat_id,
+            file_name=file.filename,
+            file_url=file_location, # This will be changed in production
+            created_at=utils.get_current_time()
+        )
+        db.add(file_record)
+        db.flush()
+
+        # Create and save user message with prompt
+        # user_msg = models.Message(
+        #     id=str(uuid.uuid4()),
+        #     chat_id=chat_id,
+        #     role="user",
+        #     content=prompt,
+        #     created_at=utils.get_current_time()
+        # )
+        # db.add(user_msg)
+        # db.flush()
+
+        # # Get chat history from the database
+        past_messages = crud.get_messages_by_chat_id(chat_id, db)
+
+        # Build context and query for the model
+        context = utils.build_context(model_type, past_messages)
+        # You'll need to update utils.build_query to handle file data
+        # For now, let's assume the prompt and context are sufficient
+        query = utils.build_query(model_type, context)
+
+        # Query the model
+        response = file_handler.process_file_with_llm(model_type, file_location, prompt)
+        
+        return models.Message(
+            id=str(uuid.uuid4()),
+            chat_id=chat_id,
+            role="assistant",
+            content=response,
+            created_at=utils.get_current_time()
+        )
+
+        # if response.status_code != 200:
+        #     db.rollback()
+        #     raise HTTPException(status_code=500, detail=f"{model_type.capitalize()} generation failed")
+
+        # Extract assistant's response
+        # if model_type == "ollama":
+        #     assistant_text = response.json().get("response", "")
+        # elif model_type == "openai":
+        #     assistant_text = response.json()["choices"][0]["message"]["content"]
+        # elif model_type == "anthropic":
+        #     assistant_text = response.json()["content"][0]["text"]
+        # else:
+        #     raise HTTPException(status_code=422, detail=f"Unsupported model type: {model_type}")
+
+        # # Save assistant's response to the database
+        # assistant_msg = models.Message(
+        #     id=str(uuid.uuid4()),
+        #     chat_id=chat_id,
+        #     role="assistant",
+        #     content=assistant_text,
+        #     created_at=utils.get_current_time()
+        # )
+        # db.add(assistant_msg)
+        # db.commit()
+        # db.refresh(assistant_msg)
+
+        # # Clean up the temporary file (optional but good practice)
+        # os.remove(file_location)
+
+        # return {"assistant_response": assistant_msg.content}
+    except Exception as e:
+        db.rollback()
+        raise HTTPException(status_code=500, detail=f"Failed to handle file upload and chat: {e}")
+
+
 
 
 @router.put("/chat_sessions/rename",response_model=schemas.chatSessionRenameOut)
