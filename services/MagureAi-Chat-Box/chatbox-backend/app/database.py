@@ -14,6 +14,8 @@ engine = create_engine(
     pool_recycle=1800    # Recycle connections after 30 minutes
 )
 
+print(f"Database URL: {settings.DATABASE_URL}")
+
 # Session factory
 SessionLocal = sessionmaker(
     bind=engine,
