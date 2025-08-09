@@ -10,7 +10,7 @@ import magic # Requires python-magic library
 from ..config import settings
 
 # Initialize API clients
-openai_client = OpenAI(api_key =settings.OPENAI_API_KEY)
+client = OpenAI(api_key = settings.OPENAI_API_KEY)
 anthropic_client = Anthropic()
 
 
@@ -42,22 +42,92 @@ def process_file_with_llm(model_choice: str, file_path: str, prompt: str) -> str
 
     # --- OpenAI Execution ---
     if model_choice.lower() == "openai":
-        # OpenAI's Chat Completions API is best for images and text
-        if mime_type.startswith("image/"):
-            messages = [
-                {"role": "user", "content": [
-                    {"type": "text", "text": prompt},
-                    {"type": "image_url", "image_url": {"url": f"data:{mime_type};base64,{base64_file}"}}
-                ]}
-            ]
-            response = openai_client.chat.completions.create(model="gpt-4o", messages=messages)
-            return response.choices[0].message.content
-        elif mime_type.startswith("text/") or mime_type == "application/pdf":
-            # For PDFs and other documents, the Chat Completions API is not the right tool.
-            # We return a specific error message as you requested.
-            return f"❌ OpenAI Chat Completions does not natively parse document types like PDFs. For advanced document analysis, use the Assistants API with File Search."
-        else:
-            return "❌ OpenAI Chat Completions does not support this file type."
+        """
+    Processes a file using the OpenAI Assistants API with the file_search tool.
+    
+    Args:
+        file_path (str): The local path to the file to be processed.
+        prompt (str): The prompt for the LLM.
+
+    Returns:
+        str: The response from the LLM based on the document content.
+    """
+        try:
+            # Step 1: Upload the file
+            print("Step 1: Uploading file...")
+            with open(file_path, "rb") as f:
+                uploaded_file = client.files.create(file=f, purpose="assistants")
+            
+            file_id = uploaded_file.id
+            print(f"File uploaded with ID: {file_id}")
+
+            # Step 2: Create a vector store and link the file
+            print("Step 2: Creating and linking a vector store...")
+            # The 'vector_stores' object is no longer in beta, so we remove .beta from the call
+            vector_store = client.vector_stores.create(
+                name="My Document Store",
+                file_ids=[file_id]
+            )
+
+            vector_store_id = vector_store.id
+            print(f"Vector store created with ID: {vector_store_id}")
+            
+            # Step 3: Create an Assistant with the file_search tool
+            print("Step 3: Creating an Assistant...")
+            assistant = client.beta.assistants.create(
+                name="Document Analyzer",
+                instructions="You are a helpful assistant that analyzes documents and answers questions based on their content.",
+                model="gpt-4o",
+                tools=[{"type": "file_search"}]
+            )
+            assistant_id = assistant.id
+            print(f"Assistant created with ID: {assistant_id}")
+
+            # Step 4: Create a thread and add the message
+            print("Step 4: Creating a thread and adding the message...")
+            thread = client.beta.threads.create(
+                messages=[
+                    {
+                        "role": "user",
+                        "content": prompt,
+                        "attachments": [
+                            { "file_id": file_id, "tools": [{"type": "file_search"}] }
+                        ]
+                    }
+                ]
+            )
+            thread_id = thread.id
+            print(f"Thread created with ID: {thread_id}")
+
+            # Step 5: Create and poll the run
+            print("Step 5: Creating and polling the run...")
+            run = client.beta.threads.runs.create_and_poll(
+                thread_id=thread_id,
+                assistant_id=assistant_id
+            )
+            
+            # Step 6: Retrieve the response
+            print("Step 6: Retrieving the response...")
+            messages = client.beta.threads.messages.list(thread_id=thread_id, run_id=run.id)
+            
+            if messages.data:
+                response_content = messages.data[0].content[0].text.value
+            else:
+                response_content = "Error: No response found."
+
+            # Step 7 (Cleanup): Deleting the file, assistant, thread, and vector store
+            print("Step 7: Cleaning up resources...")
+            client.beta.threads.delete(thread_id=thread_id)
+            client.beta.assistants.delete(assistant_id=assistant_id)
+            client.vector_stores.delete(vector_store_id=vector_store_id)
+            client.files.delete(file_id=file_id)
+            
+            print("Cleanup complete.")
+            return response_content
+
+        except Exception as e:
+            # A more robust solution would include specific error handling
+            return f"An error occurred: {str(e)}"
 
     # --- Anthropic Execution ---
     elif model_choice.lower() == "anthropic":

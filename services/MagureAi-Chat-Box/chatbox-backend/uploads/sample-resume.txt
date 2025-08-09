@@ -1,0 +1,23 @@
+John Doe
+Email: johndoe@example.com
+Phone: +1-234-567-8901
+
+Summary:
+Experienced backend engineer with 6 years of experience in Python, Django, and DevOps. Strong background in building scalable APIs and working with cloud infrastructure.
+
+Skills:
+- Python, Django, FastAPI
+- PostgreSQL, Redis, MongoDB
+- Docker, Kubernetes, AWS, CI/CD
+
+Experience:
+Senior Backend Engineer – Acme Corp (2020 - Present)
+- Built microservices architecture for core product
+- Led migration to Kubernetes and CI/CD pipelines
+
+Software Engineer – BetaTech Solutions (2017 - 2020)
+- Developed REST APIs and managed PostgreSQL databases
+- Deployed applications on AWS using Docker
+
+Education:
+B.Tech in Computer Science – ABC University (2013 - 2017)
