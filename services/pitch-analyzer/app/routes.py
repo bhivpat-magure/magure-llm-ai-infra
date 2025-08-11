@@ -20,15 +20,20 @@ from celery_app import make_celery
 celery = make_celery()
 # Add this right after you define `app`
 
+origins = [
+    "http://localhost:5173",
+    "http://127.0.0.1:5173",
+    "https://rag-mag.vercel.app"
+]
+
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["https://rag-mag.vercel.app"],  # ✅ correct format
+    allow_origins=origins,  # ✅ Explicit list, not "*"
     allow_credentials=True,
     allow_methods=["*"],
-    allow_headers=["*"],  # ✅ includes Authorization header by default
+    allow_headers=["Content-Type", "Authorization"],
+    expose_headers=["Content-Type", "Authorization"]
 )
-
-
 
 '''
 saved_path = os.path.abspath(os.path.join(UPLOAD_DIR, f"{uuid4()}_{filename}"))

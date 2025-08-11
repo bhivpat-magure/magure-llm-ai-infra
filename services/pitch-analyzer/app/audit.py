@@ -6,9 +6,6 @@ from concurrent.futures import ThreadPoolExecutor
 from sqlalchemy import create_engine, Table, Column, Integer, String, JSON, MetaData, TIMESTAMP, text
 from sqlalchemy.sql import insert
 
-
-
-
 # ThreadPool to offload DB writes so main request thread is not blocked
 _EXECUTOR = ThreadPoolExecutor(max_workers=4)
 
@@ -72,39 +69,3 @@ def log_audit(service_name: str, action: str, user_id: str | None = None,
     }
     # schedule background write and return immediately
     _EXECUTOR.submit(_write_to_db, payload)
-
-
-from sqlalchemy.sql import text
-
-def fetch_audit_logs(limit: int = 100, offset: int = 0, user_id: str | None = None):
-    query = "SELECT * FROM audit_logs WHERE 1=1"
-    params = {}
-
-    if user_id:
-        query += " AND user_id = :user_id"
-        params["user_id"] = user_id
-
-    query += " ORDER BY created_at DESC LIMIT :limit OFFSET :offset"
-    params["limit"] = limit
-    params["offset"] = offset
-
-    print("=== DEBUG: fetch_audit_logs ===")
-    print(f"SQL Query: {query}")
-    print(f"Params Type: {type(params)}")
-    print(f"Params Content: {params}")
-
-    try:
-        with _engine.connect() as conn:
-            print(f"Executing query with params: {params}")
-            result = conn.execute(text(query), params)
-            logs = []
-            for row in result:
-                print(f"Row raw: {row}")
-                row_dict = dict(row._mapping)  # <-- Use _mapping here
-                print(f"Row as dict: {row_dict}")
-                logs.append(row_dict)
-            print(f"Total logs fetched: {len(logs)}")
-        return logs
-    except Exception as e:
-        print(f"Exception during DB query: {e}")
-        return {"error": str(e)}

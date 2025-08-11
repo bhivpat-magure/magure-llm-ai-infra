@@ -1,21 +1,25 @@
 # app/middleware/jwt_middleware.py
-
 from starlette.middleware.base import BaseHTTPMiddleware
+from starlette.responses import Response
 from fastapi import Request, HTTPException
 from jose import jwt, JWTError
-
-from dotenv import load_dotenv
 import os
+from dotenv import load_dotenv
+
 load_dotenv()
 
+SECRET_KEY = os.getenv('SECRET_KEY')
+JWT_ALGORITHM = os.getenv('JWT_ALGORITHM', 'HS256')
 
-SECRET_KEY=os.getenv('SECRET_KEY')
-# Shared with chatbox_backend
-JWT_ALGORITHM=os.getenv('JWT_ALGORITHM', 'HS256')
-EXCLUDE_PATHS = ["/docs", "/openapi.json", "/redoc"]  # Allow unauthenticated access
+EXCLUDE_PATHS = ["/docs", "/openapi.json", "/redoc"]
 
 class JWTMiddleware(BaseHTTPMiddleware):
     async def dispatch(self, request: Request, call_next):
+        # ✅ Skip OPTIONS preflight
+        if request.method == "OPTIONS":
+            return Response(status_code=200)
+
+        # ✅ Skip excluded paths
         if any(request.url.path.startswith(path) for path in EXCLUDE_PATHS):
             return await call_next(request)
 

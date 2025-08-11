@@ -1,197 +1,158 @@
-from flask import Blueprint, request, jsonify, send_from_directory
-from werkzeug.utils import secure_filename
+from flask import Blueprint, request, jsonify, g
 from app import app, db
 from app.models import Group, UploadedCV, JsonData
-from app.celery_tasks import parse_resume_task, upload_to_cloudinary_task
-from utils.cv_processing import process_and_store_embeddings, delete_cv_data, extract_text_from_pdf, extract_text_from_docx
-from utils.retriever import retrieve_similar_chunks
-from utils.llm import build_prompt, query_with_openai_sdk, normalize_llm_response
-from datetime import datetime
-from zoneinfo import ZoneInfo
-import os
-import random
-import string
 import traceback
-import shutil
 import logging
-import re
+from datetime import datetime
 
+from .controller import (
+    search_resume_matches,
+    enrich_candidate_details,
+    parse_experience_to_years,
+    handle_cv_upload,
+    handle_jd_upload,
+    clear_all_data,
+    delete_cv,
+    add_comment_to_cv,
+    get_processing_info
+)
 
-ACTION=[
-        "UPLOAD_RESUME",
-        "FETCH_RESUMES",
-        "DELETE_RESUME",
-        "VIEW_RESUME",
-        "SEARCH_CANDIDATE",
-        "UPLOAD_JOBDESCRIPTION",
-        "RESUME_PROCESSING_STATUS",
-        "ADD_COMMENT",
-        "GET_COMMENT",
-        "DELETE_COMMENT",
-        "FETCH_GROUPS",
-        "ADD_GROUP",
-        "DELETE_GROUP",
-        ]
+from .audit import log_audit, fetch_audit_logs
 
 logger = logging.getLogger(__name__)
 api = Blueprint('api', __name__)
 
 
-# 🔁 Shared logic extracted here
-def search_resume_matches(query, group_name):
-    if not query:
-        raise ValueError("No query provided")
 
-    results = []
-    if not group_name or group_name.lower() in ["null", "undefined", ""]:
-        for grp in Group.query.all():
-            results.extend(retrieve_similar_chunks(query, k=5, group=grp.name))
-    else:
-        group_obj = Group.query.filter_by(name=group_name).first()
-        if not group_obj:
-            raise LookupError(f"Group '{group_name}' not found")
-        results = retrieve_similar_chunks(query, k=5, group=group_obj.name)
-
-    return results
-
-
-def enrich_candidate_details(candidate_details):
-    if not candidate_details:
-        return
-
-    file_names = [c.get("file_name") for c in candidate_details if "file_name" in c]
-
-    # Fetch CVs
-    cvs = UploadedCV.query.filter(UploadedCV.stored_filename.in_(file_names)).all()
-    cv_map = {cv.stored_filename: cv for cv in cvs}
-
-    # Fetch corresponding JsonData
-    cv_ids = [cv.id for cv in cvs]
-    json_data_list = JsonData.query.filter(JsonData.cv_id.in_(cv_ids)).all()
-    jd_map = {jd.cv_id: jd for jd in json_data_list}
-
-    # Enrich each candidate
-    for candidate in candidate_details:
-        file_name = candidate.get("file_name")
-        cv = cv_map.get(file_name)
-        if not cv:
-            continue
-        jd = jd_map.get(cv.id)
-
-        candidate["cv_id"] = cv.id
-        candidate["comment"] = cv.comment
-        candidate["commented_at"] = cv.commented_at.isoformat() if cv.commented_at else None
-        candidate["email"] = jd.email if jd else []
-        candidate["phone"] = jd.phone if jd else []
-        candidate["college"] = jd.college if jd else []
-        candidate["job_profile"] = jd.job_profile if jd else None
-        candidate["total_experience"] = jd.total_experience if jd else None
-
-
-
-
-def allowed_file(filename):
-    return '.' in filename and filename.rsplit('.', 1)[1].lower() in {'pdf', 'docx'}
-
-def generate_unique_id(length=5):
-    return ''.join(random.choices(string.ascii_letters + string.digits, k=length))
-
-
-
-def parse_experience_to_years(exp_str: str) -> float:
-    if not exp_str or not isinstance(exp_str, str):
-        return 0.0
-
-    # Regex to find years and months
-    year_match = re.search(r"(\d+)\s*year", exp_str)
-    month_match = re.search(r"(\d+)\s*month", exp_str)
-
-    years = int(year_match.group(1)) if year_match else 0
-    months = int(month_match.group(1)) if month_match else 0
-
-    return round(years + (months / 12), 2)
-
+def get_client_ip():
+    """Try to get client IP for logging."""
+    if request.headers.get("X-Forwarded-For"):
+        return request.headers.get("X-Forwarded-For").split(",")[0].strip()
+    return request.remote_addr
 
 
 @api.route("/", methods=["GET"])
 def index():
+    log_audit(
+        service_name="resume_service",
+        action="INDEX",
+        user_id=g.get("user_id"),
+        ip_address=get_client_ip(),
+        request_data=None,
+        response_data={"message": "Welcome to the Resume Analyzer API", "status": "SUCCESS"}
+    )
     return jsonify({"message": "Welcome to the Resume Analyzer API"}), 200
 
 
-
-# Group routes
 @api.route("/groups", methods=["GET"])
 def list_groups():
-    return jsonify([g.as_dict() for g in Group.query.all()]), 200
+    groups = [g.as_dict() for g in Group.query.all()]
+    log_audit(
+        service_name="resume_service",
+        action="LIST_GROUPS",
+        user_id=g.get("user_id"),
+        ip_address=get_client_ip(),
+        request_data=None,
+        response_data={"count": len(groups), "status": "SUCCESS"}
+    )
+    return jsonify(groups), 200
+
 
 @api.route("/groups", methods=["POST"])
 def create_group():
     data = request.get_json()
     name = data.get("name")
     if not name:
+        log_audit(
+            service_name="resume_service",
+            action="CREATE_GROUP",
+            user_id=g.get("user_id"),
+            ip_address=get_client_ip(),
+            request_data=data,
+            response_data={"error": "Missing group name", "status": "FAILURE"}
+        )
         return jsonify({"error": "Group name required"}), 400
+
     if Group.query.filter_by(name=name).first():
+        log_audit(
+            service_name="resume_service",
+            action="CREATE_GROUP",
+            user_id=g.get("user_id"),
+            ip_address=get_client_ip(),
+            request_data=data,
+            response_data={"error": f"Group exists: {name}", "status": "FAILURE"}
+        )
         return jsonify({"error": "Group already exists"}), 400
+
     db.session.add(Group(name=name))
     db.session.commit()
+
+    log_audit(
+        service_name="resume_service",
+        action="CREATE_GROUP",
+        user_id=g.get("user_id"),
+        ip_address=get_client_ip(),
+        request_data=data,
+        response_data={"message": f"Created group: {name}", "status": "SUCCESS"}
+    )
     return jsonify({"message": "Group created"}), 201
+
 
 @api.route("/groups/<int:group_id>", methods=["DELETE"])
 def delete_group(group_id):
     group = Group.query.get_or_404(group_id)
     if group.cvs:
+        log_audit(
+            service_name="resume_service",
+            action="DELETE_GROUP",
+            user_id=g.get("user_id"),
+            ip_address=get_client_ip(),
+            request_data={"group_id": group_id},
+            response_data={"error": "Group has associated CVs", "status": "FAILURE"}
+        )
         return jsonify({"error": "Group has associated CVs"}), 400
+
     db.session.delete(group)
     db.session.commit()
+
+    log_audit(
+        service_name="resume_service",
+        action="DELETE_GROUP",
+        user_id=g.get("user_id"),
+        ip_address=get_client_ip(),
+        request_data={"group_id": group_id},
+        response_data={"message": "Group deleted", "status": "SUCCESS"}
+    )
     return jsonify({"message": "Group deleted"}), 200
 
-# CV upload
+
 @api.route("/upload_cv", methods=["POST"])
 def upload_cv():
     try:
-        files = request.files.getlist('cv')
-        group_name = request.form.get("group")
-        if not files or files == [None]:
-            return jsonify({"error": "No files selected"}), 400
-        if not group_name:
-            return jsonify({"error": "No group selected"}), 400
-
-        group_obj = Group.query.filter_by(name=group_name).first()
-        if not group_obj:
-            group_obj = Group(name=group_name)
-            db.session.add(group_obj)
-            db.session.commit()
-
-        uploaded_files, errors = [], []
-        for file in files:
-            if file and allowed_file(file.filename):
-                unique_filename = f"{generate_unique_id()}_{secure_filename(file.filename)}"
-                filepath = os.path.join(app.config['UPLOAD_FOLDER'], unique_filename)
-                file.save(filepath)
-
-                uploaded = UploadedCV(
-                    original_filename=file.filename,
-                    stored_filename=unique_filename,
-                    filepath=filepath,
-                    group_id=group_obj.id
-                )
-                db.session.add(uploaded)
-                db.session.commit()
-
-                parse_resume_task.delay(uploaded.id, group_name)
-                upload_to_cloudinary_task.delay(uploaded.id)
-
-                uploaded_files.append(uploaded.as_dict())
-            else:
-                errors.append({"filename": file.filename, "error": "Invalid file type"})
-
+        uploaded_files, errors = handle_cv_upload(
+            request.files.getlist('cv'),
+            request.form.get("group")
+        )
+        log_audit(
+            service_name="resume_service",
+            action="UPLOAD_CV",
+            user_id=g.get("user_id"),
+            ip_address=get_client_ip(),
+            request_data={"group": request.form.get("group")},
+            response_data={"uploaded_count": len(uploaded_files), "errors_count": len(errors), "status": "SUCCESS"}
+        )
         return jsonify({"uploaded": uploaded_files, "errors": errors}), 200
-
     except Exception as e:
         logger.error(traceback.format_exc())
+        log_audit(
+            service_name="resume_service",
+            action="UPLOAD_CV",
+            user_id=g.get("user_id"),
+            ip_address=get_client_ip(),
+            request_data={"group": request.form.get("group")},
+            response_data={"error": str(e), "status": "FAILURE"}
+        )
         return jsonify({"error": str(e)}), 500
-
-
 
 
 @api.route("/search_api", methods=["POST"])
@@ -200,394 +161,173 @@ def search_api():
     try:
         query = data.get("query")
         group_name = data.get("group")
-
         results = search_resume_matches(query, group_name)
-        print("result", results)
+        from utils.llm import build_prompt, query_with_openai_sdk
         prompt = build_prompt(query, results)
-        print("prompt", prompt)
-
         answer = query_with_openai_sdk(prompt)
-        print("answer", answer)
+        if answer.get("summary") not in ["1", "2"] and answer.get("candidate_details"):
+            enrich_candidate_details(answer["candidate_details"])
 
-
-
-        # Enrich candidate details if needed
-        candidate_details = answer.get("candidate_details")
-        summary = answer.get("summary")
-
-        if summary not in ["1", "2"] and candidate_details:
-            enrich_candidate_details(candidate_details)
-
-        return jsonify({
-            "answer": answer,
-            "results": results
-        }), 200
-
-    except (ValueError, LookupError) as e:
-        return jsonify({"error": str(e)}), 400
+        log_audit(
+            service_name="resume_service",
+            action="SEARCH_API",
+            user_id=g.get("user_id"),
+            ip_address=get_client_ip(),
+            request_data=data,
+            response_data={"query": query, "group": group_name, "results_count": len(results), "status": "SUCCESS"}
+        )
+        return jsonify({"answer": answer, "results": results}), 200
     except Exception as e:
         logger.error(traceback.format_exc())
-        return jsonify({"error": "Internal error", "details": str(e)}), 500
+        log_audit(
+            service_name="resume_service",
+            action="SEARCH_API",
+            user_id=g.get("user_id"),
+            ip_address=get_client_ip(),
+            request_data=data,
+            response_data={"error": str(e), "status": "FAILURE"}
+        )
+        return jsonify({"error": str(e)}), 500
 
 
 @api.route("/upload_jd", methods=["POST"])
 def upload_jd():
     try:
-        file = request.files.get("file")
-        group_name = request.form.get("group")
+        query, results, answer = handle_jd_upload(
+            request.files.get("file"),
+            request.form.get("group")
+        )
+        if answer.get("summary") not in ["1", "2"] and answer.get("candidate_details"):
+            enrich_candidate_details(answer["candidate_details"])
 
-        if not file:
-            return jsonify({"error": "No file provided"}), 400
-
-        filename = secure_filename(file.filename)
-        ext = os.path.splitext(filename)[1].lower()
-
-        if ext == '.pdf':
-            raw_text = extract_text_from_pdf(file)
-        elif ext == '.docx':
-            raw_text = extract_text_from_docx(file)
-        else:
-            return jsonify({"error": "Unsupported file type"}), 400
-
-        query = raw_text.strip()
-        if not query:
-            return jsonify({"error": "Could not derive search query from file"}), 400
-
-        results = search_resume_matches(query, group_name)
-        prompt = build_prompt(query, results)
-        answer = query_with_openai_sdk(prompt)
-
-        # Enrich candidate details if needed
-        candidate_details = answer.get("candidate_details")
-        summary = answer.get("summary")
-
-        if summary not in ["1", "2"] and candidate_details:
-            enrich_candidate_details(candidate_details)
-
-        return jsonify({
-            "answer": answer,
-            "results": results
-        }), 200
-
-    except (ValueError, LookupError) as e:
-        return jsonify({"error": str(e)}), 400
+        log_audit(
+            service_name="resume_service",
+            action="UPLOAD_JD",
+            user_id=g.get("user_id"),
+            ip_address=get_client_ip(),
+            request_data={"group": request.form.get("group")},
+            response_data={"query": query, "results_count": len(results), "status": "SUCCESS"}
+        )
+        return jsonify({"answer": answer, "results": results}), 200
     except Exception as e:
         logger.error(traceback.format_exc())
-        return jsonify({"error": "Internal error", "details": str(e)}), 500
+        log_audit(
+            service_name="resume_service",
+            action="UPLOAD_JD",
+            user_id=g.get("user_id"),
+            ip_address=get_client_ip(),
+            request_data={"group": request.form.get("group")},
+            response_data={"error": str(e), "status": "FAILURE"}
+        )
+        return jsonify({"error": str(e)}), 500
 
-
-
-@api.route("/cvs", methods=["POST"])
-def get_cvs():
-    data = request.get_json() or {}
-    group_name = data.get("group")
-    results = []
-
-    # ─── 1. Group Filtering ───
-    if group_name and group_name.lower() not in ["null", "undefined", ""]:
-        group = Group.query.filter_by(name=group_name).first()
-        if not group:
-            return jsonify([]), 200
-        cvs = UploadedCV.query.filter_by(group_id=group.id).order_by(UploadedCV.upload_time.desc()).all()
-    else:
-        cvs = UploadedCV.query.order_by(UploadedCV.upload_time.desc()).all()
-
-    # ─── 2. Get JsonData for all CVs ───
-    json_map = {
-        jd.cv_id: jd
-        for jd in JsonData.query.filter(JsonData.cv_id.in_([cv.id for cv in cvs])).all()
-    }
-
-    for cv in cvs:
-        jd = json_map.get(cv.id)
-        if not jd:
-            continue
-
-        # ─── 3. Base CV Data ───
-        cv_dict = cv.as_dict()
-        cv_dict.update({
-            "name": jd.data.get("name", "Data not found") if jd.data else "Data not found",
-            "job_profile": jd.data.get("job_profile", "Data not found") if jd.data else "Data not found",
-            "total_experience": jd.total_experience or "Data not found"
-        })
-
-
-
-        # ─── 4. Filter by CV ID ───
-        if "cv_id" in data:
-            if int(data["cv_id"]) != cv.id:
-                continue
-
-        # ─── 5. Filter by Experience Range ───
-        if "experience" in data:
-            try:
-                exp_str = jd.total_experience or ""
-                exp = parse_experience_to_years(exp_str)
-                min_exp, max_exp = float(data["experience"][0]), float(data["experience"][1])
-                if not (min_exp <= exp <= max_exp):
-                    continue
-            except Exception as e:
-                logger.warning(f"Experience parsing failed for CV {cv.id}: {e}")
-                continue
-
-        # ─── 6. Filter by Skills ───
-        if "skills" in data:
-            required_skills = set([s.strip().lower() for s in data["skills"]])
-            candidate_skills = set([s.strip().lower() for s in jd.skills or []])
-            matched_skills = required_skills & candidate_skills
-
-            cv_dict["total_skills_candidate"] = len(candidate_skills)
-            cv_dict["matched_skills_count"] = len(matched_skills)
-
-            if not matched_skills:
-                continue
-
-        # ─── 7. Filter by Location ───
-        if "location" in data:
-            candidate_location = (jd.location or "").strip().lower()
-            if candidate_location != data["location"].strip().lower():
-                continue
-
-        # ─── 8. Filter by Education ───
-        if "education" in data:
-            edu_required = data["education"].strip().lower()
-            edu_list = [e.strip().lower() for e in jd.education or []]
-            if edu_required not in edu_list:
-                continue
-
-        # ─── 9. Filter by Availability ───
-        if "availability" in data:
-            if not jd.last_working_date:
-                continue  # Currently working → exclude
-
-            try:
-                lwd = jd.last_working_date
-                if isinstance(lwd, str):
-                    lwd = datetime.fromisoformat(lwd)
-
-                today = datetime.utcnow()
-                delta_days = (today - lwd).days
-                avail_req = data["availability"].strip().lower()
-
-                if avail_req == "immediately":
-                    if lwd > today:
-                        continue
-                elif avail_req == "15 days" and delta_days < -15:
-                    continue
-                elif avail_req == "30 days" and delta_days < -30:
-                    continue
-                elif avail_req == "45 days" and delta_days < -45:
-                    continue
-                else:
-                    pass  # Unknown availability term will fall through
-            except Exception as e:
-                logger.warning(f"Availability filter failed for CV {cv.id}: {e}")
-                continue
-
-        # ─── 10. Calculate Days Available ───
-        if jd.last_working_date:
-            try:
-                lwd = jd.last_working_date
-                if isinstance(lwd, str):
-                    lwd = datetime.fromisoformat(lwd)
-                cv_dict["days_available"] = (datetime.utcnow() - lwd).days
-            except Exception:
-                cv_dict["days_available"] = "Invalid date format"
-        else:
-            cv_dict["days_available"] = "Currently Working"
-            
-
-        results.append(cv_dict)
-
-
-    return jsonify(results), 200
-
-
-
-@api.route("/uploads/<filename>", methods=["GET"])
-def uploaded_file(filename):
-    return send_from_directory(app.config['UPLOAD_FOLDER'], filename)
-
-@api.route("/download/<int:cv_id>", methods=["GET"])
-def download(cv_id):
-    cv = UploadedCV.query.get_or_404(cv_id)
-    return send_from_directory(app.config['UPLOAD_FOLDER'], cv.stored_filename, as_attachment=True, download_name=cv.original_filename)
 
 @api.route("/clear_all", methods=["DELETE"])
 def clear_all():
-    UploadedCV.query.delete()
-    JsonData.query.delete()
-
-    Group.query.delete()
-    db.session.commit()
-
-    vector_dir = os.path.join(os.path.dirname(__file__), '..', 'vector_store')
-    if os.path.exists(vector_dir):
-        shutil.rmtree(vector_dir)
-        os.makedirs(vector_dir)
-
-    shutil.rmtree(app.config['UPLOAD_FOLDER'], ignore_errors=True)
-    os.makedirs(app.config['UPLOAD_FOLDER'])
-
+    clear_all_data()
+    log_audit(
+        service_name="resume_service",
+        action="CLEAR_ALL",
+        user_id=g.get("user_id"),
+        ip_address=get_client_ip(),
+        request_data=None,
+        response_data={"message": "All data cleared", "status": "SUCCESS"}
+    )
     return jsonify({"message": "All data cleared"}), 200
 
+
 @api.route("/delete/<int:cv_id>", methods=["DELETE"])
-def delete(cv_id):
-    cv = UploadedCV.query.get_or_404(cv_id)
-
+def delete_cv_route(cv_id):
     try:
-        # Delete file from disk
-        if os.path.exists(cv.filepath):
-            os.remove(cv.filepath)
-
-        # Delete associated JSON data
-        json_entry = JsonData.query.filter_by(cv_id=cv.id).first()
-        if json_entry:
-            db.session.delete(json_entry)
-
-        # Delete from UploadedCV
-        delete_cv_data(cv.stored_filename, group=cv.group_rel.name)
-        db.session.delete(cv)
-        # Commit everything
-        db.session.commit()
-
-        return jsonify({"message": f"Deleted {cv.original_filename} and associated JSON data"}), 200
-
+        delete_cv(cv_id)
+        log_audit(
+            service_name="resume_service",
+            action="DELETE_CV",
+            user_id=g.get("user_id"),
+            ip_address=get_client_ip(),
+            request_data={"cv_id": cv_id},
+            response_data={"message": "CV deleted", "status": "SUCCESS"}
+        )
+        return jsonify({"message": "CV deleted"}), 200
     except Exception as e:
-        db.session.rollback()
+        log_audit(
+            service_name="resume_service",
+            action="DELETE_CV",
+            user_id=g.get("user_id"),
+            ip_address=get_client_ip(),
+            request_data={"cv_id": cv_id},
+            response_data={"error": str(e), "status": "FAILURE"}
+        )
         return jsonify({"error": str(e)}), 500
 
 
 @api.route("/cv/<int:cv_id>/comment", methods=["POST"])
-def add_comment(cv_id):
+def add_comment_route(cv_id):
     data = request.get_json()
-    comment = data.get("comment")
-    if not comment:
+    if not data.get("comment"):
+        log_audit(
+            service_name="resume_service",
+            action="ADD_COMMENT",
+            user_id=g.get("user_id"),
+            ip_address=get_client_ip(),
+            request_data={"cv_id": cv_id, "comment": data.get("comment")},
+            response_data={"error": "Missing comment", "status": "FAILURE"}
+        )
         return jsonify({"error": "Comment is required"}), 400
-    cv = UploadedCV.query.get_or_404(cv_id)
-    cv.comment = comment
-    cv.commented_at = datetime.now(ZoneInfo("Asia/Kolkata"))
-    db.session.commit()
-    return jsonify({"message": "Comment saved", "cv": cv.as_dict()}), 200
 
-@api.route("/cv/<int:cv_id>/json", methods=["GET"])
-def get_json_data(cv_id):
-    json_record = JsonData.query.filter_by(cv_id=cv_id).first()
-    if not json_record:
-        return jsonify({"status": "processing"}), 202
-    return jsonify({
-        "parsed": json_record.parsed,
-        "attempts": json_record.attempts,
-        "data": json_record.data if json_record.parsed else None,
-        "error": json_record.last_error
-    }), 200
-
-
+    cv_dict = add_comment_to_cv(cv_id, data["comment"])
+    log_audit(
+        service_name="resume_service",
+        action="ADD_COMMENT",
+        user_id=g.get("user_id"),
+        ip_address=get_client_ip(),
+        request_data={"cv_id": cv_id, "comment": data["comment"]},
+        response_data={"message": "Comment saved", "status": "SUCCESS"}
+    )
+    return jsonify({"message": "Comment saved", "cv": cv_dict}), 200
 
 
 @api.route("/resume-processing", methods=["GET"])
-def get_processing_info():
+def get_processing_info_route():
     try:
-        # Total CVs uploaded
-        total_cvs = db.session.query(UploadedCV).count()
-
-        # Total parsed CVs
-        parsed_cvs = db.session.query(JsonData).filter_by(parsed=1).count()
-
-        # Pending = total - parsed
-        pending_cvs = total_cvs - parsed_cvs
-
-        return jsonify({
-            "total_cvs": total_cvs,
-            "parsed_cvs": parsed_cvs,
-            "pending_cvs": pending_cvs
-        }), 200
+        info = get_processing_info()
+        log_audit(
+            service_name="resume_service",
+            action="RESUME_PROCESSING",
+            user_id=g.get("user_id"),
+            ip_address=get_client_ip(),
+            request_data=None,
+            response_data={**info, "status": "SUCCESS"}
+        )
+        return jsonify(info), 200
     except Exception as e:
-        return jsonify({"error": str(e)}), 500
-
-@api.route("/filters/meta", methods=["GET"])
-def get_filter_metadata():
-    try:
-        all_json = JsonData.query.all()
-
-        skill_set = set()
-        location_set = set()
-        education_set = set()
-        college_set = set()
-
-        for jd in all_json:
-            # Skills
-            if jd.skills:
-                skill_set.update([s.strip().lower() for s in jd.skills if isinstance(s, str)])
-
-            # Location
-            if jd.location and isinstance(jd.location, str):
-                location_set.add(jd.location.strip().lower())
-
-            # Education
-            if jd.education:
-                education_set.update([e.strip().lower() for e in jd.education if isinstance(e, str)])
-
-            # Colleges
-            if jd.college:
-                college_set.update([c.strip().lower() for c in jd.college if isinstance(c, str)])
-
-        return jsonify({
-            "skills": sorted(skill_set),
-            "locations": sorted(location_set),
-            "educations": sorted(education_set),
-            "colleges": sorted(college_set),
-        }), 200
-
-    except Exception as e:
-        logger.error(f"Error in /filters/meta: {e}", exc_info=True)
+        log_audit(
+            service_name="resume_service",
+            action="RESUME_PROCESSING",
+            user_id=g.get("user_id"),
+            ip_address=get_client_ip(),
+            request_data=None,
+            response_data={"error": str(e), "status": "FAILURE"}
+        )
         return jsonify({"error": str(e)}), 500
 
 
-
-
-
-
-@api.route("/cv_json_union/all", methods=["GET"])
-def get_all_cv_json_union():
+@api.route("/audit_logs", methods=["GET"])
+def get_audit_logs():
     try:
-        uploaded_cvs = UploadedCV.query.options(db.joinedload(UploadedCV.json_data_rel)).all()
+        limit = int(request.args.get("limit", 100))
+        offset = int(request.args.get("offset", 0))
+        user_id = request.args.get("user_id") or g.get("user_id")
+        print("route data", limit, offset, user_id)
+        #service_name = request.args.get("service_name")
 
-        results = []
-        for cv in uploaded_cvs:
-            cv_dict = cv.as_dict()
+        logs = fetch_audit_logs(limit=limit, offset=offset, user_id=user_id)
 
-            # Get related JsonData (assuming one-to-one or one-to-many first element)
-            json_data = cv.json_data_rel[0] if cv.json_data_rel else None
+        if isinstance(logs, dict) and logs.get("error"):
+            # Error occurred in fetching logs
+            return jsonify({"error": logs["error"]}), 500
 
-            if json_data:
-                json_dict = json_data.data or {}
-
-                json_meta = {
-                    "parsed": json_data.parsed,
-                    "attempts": json_data.attempts,
-                    "last_error": json_data.last_error,
-                    "total_experience": json_data.total_experience,
-                    "skills": json_data.skills,
-                    "relevant_skills": json_data.relevant_skills,
-                    "email": json_data.email,
-                    "phone": json_data.phone,
-                    "college": json_data.college,
-                    "current_company": json_data.current_company,
-                    "past_company": json_data.past_company,
-                    "location": json_data.location,
-                    "last_working_date": json_data.last_working_date,
-                    "education": json_data.education,
-                }
-            else:
-                json_dict = {}
-                json_meta = {}
-
-            merged = {**cv_dict, **json_dict, **json_meta}
-            results.append(merged)
-
-        return jsonify(results), 200
+        return jsonify({"logs": logs, "count": len(logs)}), 200
 
     except Exception as e:
-        logger.error(f"Error in /cv_json_union/all: {e}", exc_info=True)
         return jsonify({"error": str(e)}), 500

@@ -1,4 +1,4 @@
-from sqlalchemy import Column, String, Text, TIMESTAMP, ForeignKey
+from sqlalchemy import Column, String, Text, TIMESTAMP, ForeignKey,JSON, Integer
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import relationship
 import uuid
@@ -43,6 +43,19 @@ class Message(Base):
 
     chat = relationship("ChatSession", back_populates="messages")
     user = relationship("User", back_populates="messages")
+
+
+class AuditLog(Base):
+    __tablename__ = "audit_logs"
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    service_name = Column(String(100), nullable=False)
+    action = Column(String(200), nullable=False)
+    user_id = Column(String(100), nullable=True)
+    request_data = Column(JSON, nullable=True)
+    response_data = Column(JSON, nullable=True)
+    ip_address = Column(String(50), nullable=True)
+    created_at = Column(TIMESTAMP(timezone=True), nullable=False)
 
 
 # New file_id column added to the Message model

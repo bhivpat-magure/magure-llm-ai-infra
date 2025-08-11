@@ -107,8 +107,20 @@ def upload_to_cloudinary(filepath, resource_type="auto", folder="resumes"):
 
 # ─── Flask App Setup ──────────────────────────────────────
 app = Flask(__name__)
-CORS(app, resources={r"/*": {"origins": "https://rag-mag.vercel.app"}}, supports_credentials=True)
-
+# Apply CORS FIRST
+CORS(
+    app,
+    resources={r"/*": {
+        "origins": [
+            "http://localhost:5173",
+            "http://127.0.0.1:5173",
+            "https://rag-mag.vercel.app"
+        ]
+    }},
+    supports_credentials=True,
+    allow_headers=["Content-Type", "Authorization"],
+    expose_headers=["Content-Type", "Authorization"]
+)
 
 basedir = os.path.abspath(os.path.dirname(__file__ + '/../'))
 UPLOAD_FOLDER = os.path.join(basedir, 'uploaded_cvs')
@@ -159,6 +171,8 @@ def jwt_auth_middleware():
     if request.method == "OPTIONS":
         print("Skipping JWT check for preflight OPTIONS request")
         return
+
+
 
     path = request.path
 

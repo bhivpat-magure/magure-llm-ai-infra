@@ -2,31 +2,32 @@
 from fastapi import File, UploadFile, Form
 import base64
 import mimetypes
-import os # For API keys
-from fastapi import APIRouter, Depends,HTTPException
+import os  # For API keys
+from fastapi import APIRouter, Depends, HTTPException
 import uuid
 from datetime import datetime
 import requests
 from sqlalchemy.orm import Session
-from .. import models, schemas, database, crud , utils 
+from .. import models, schemas, database, crud, utils
 
-router = APIRouter(prefix = "/api2/chat" , tags = ["Chat"])
+router = APIRouter(prefix="/api2/chat", tags=["Chat"])
 
 # I've assumed you'll store API keys in environment variables for security
 OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
 ANTHROPIC_API_KEY = os.getenv("ANTHROPIC_API_KEY")
 
+
 # ... (your existing router and endpoints) ...
 
 @router.post("/message-with-file-upload", response_model=schemas.MessageOut)
 async def post_message_with_file(
-    db: Session = Depends(database.get_db),
-    # Use Form for text fields and UploadFile for the file
-    chat_id: str = Form(...),
-    user_id: str = Form(...),
-    content: str = Form(...),
-    modelType: str = Form(...), # Received as string from form data
-    file: UploadFile = File(...)
+        db: Session = Depends(database.get_db),
+        # Use Form for text fields and UploadFile for the file
+        chat_id: str = Form(...),
+        user_id: str = Form(...),
+        content: str = Form(...),
+        modelType: str = Form(...),  # Received as string from form data
+        file: UploadFile = File(...)
 ):
     """
     Accepts a message, a file, and a model type.
@@ -41,7 +42,7 @@ async def post_message_with_file(
     try:
         file_content = await file.read()
         filename = file.filename
-        uploaded_file_id = None # This will store the ID from OpenAI
+        uploaded_file_id = None  # This will store the ID from OpenAI
         api_request_payload = {}
         api_url = ""
         api_headers = {}
@@ -50,7 +51,7 @@ async def post_message_with_file(
         if modelType == "openai":
             if not OPENAI_API_KEY:
                 raise HTTPException(status_code=500, detail="OPENAI_API_KEY is not set.")
-            
+
             # OpenAI requires a two-step process: upload file first, then use the ID
             upload_response = requests.post(
                 "https://api.openai.com/v1/files",
@@ -62,9 +63,9 @@ async def post_message_with_file(
             )
             if upload_response.status_code != 200:
                 raise HTTPException(status_code=500, detail=f"OpenAI file upload failed: {upload_response.text}")
-            
+
             uploaded_file_id = upload_response.json()["id"]
-            
+
             # Prepare the chat completion request
             api_url = "https://api.openai.com/v1/chat/completions"
             api_headers = {
@@ -72,7 +73,7 @@ async def post_message_with_file(
                 "Content-Type": "application/json"
             }
             api_request_payload = {
-                "model": "gpt-4-vision-preview", # or another model that supports vision
+                "model": "gpt-4-vision-preview",  # or another model that supports vision
                 "messages": [
                     {
                         "role": "user",
@@ -80,14 +81,15 @@ async def post_message_with_file(
                             {"type": "text", "text": content},
                             {
                                 "type": "image_url",
-                                "image_url": {"url": f"data:{file.content_type};base64,{base64.b64encode(file_content).decode('utf-8')}"}
+                                "image_url": {
+                                    "url": f"data:{file.content_type};base64,{base64.b64encode(file_content).decode('utf-8')}"}
                             }
                         ]
                     }
                 ],
-                 "max_tokens": 1024
+                "max_tokens": 1024
             }
-        
+
         elif modelType == "anthropic":
             if not ANTHROPIC_API_KEY:
                 raise HTTPException(status_code=500, detail="ANTHROPIC_API_KEY is not set.")
@@ -95,10 +97,10 @@ async def post_message_with_file(
             # Anthropic handles image data directly in the message payload
             media_type, _ = mimetypes.guess_type(filename)
             if not media_type:
-                media_type = "application/octet-stream" # Fallback
+                media_type = "application/octet-stream"  # Fallback
 
             base64_data = base64.b64encode(file_content).decode("utf-8")
-            
+
             api_url = "https://api.anthropic.com/v1/messages"
             api_headers = {
                 "x-api-key": ANTHROPIC_API_KEY,
@@ -106,7 +108,7 @@ async def post_message_with_file(
                 "Content-Type": "application/json"
             }
             api_request_payload = {
-                "model": "claude-3-opus-20240229", # or another model that supports vision
+                "model": "claude-3-opus-20240229",  # or another model that supports vision
                 "max_tokens": 1024,
                 "messages": [
                     {
@@ -133,15 +135,14 @@ async def post_message_with_file(
             # We store the filename for reference.
             uploaded_file_id = f"anthropic-file:{filename}"
 
-
         # --- Step 2: Save the user's message to the database ---
         user_msg = models.Message(
             id=str(uuid.uuid4()),
             chat_id=chat_id,
             role="user",
             user_id=user_id,
-            content=content, # The text prompt
-            file_id=uploaded_file_id, # The ID from OpenAI or reference for Anthropic
+            content=content,  # The text prompt
+            file_id=uploaded_file_id,  # The ID from OpenAI or reference for Anthropic
             created_at=datetime.utcnow()
         )
         db.add(user_msg)
@@ -153,7 +154,7 @@ async def post_message_with_file(
         if response.status_code != 200:
             db.rollback()
             raise HTTPException(status_code=500, detail=f"{modelType.capitalize()} API call failed: {response.text}")
-        
+
         # --- Step 4: Parse the response and save the assistant's message ---
         assistant_text = ""
         if modelType == "openai":
