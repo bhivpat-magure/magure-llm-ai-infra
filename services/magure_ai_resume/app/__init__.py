@@ -108,18 +108,20 @@ def upload_to_cloudinary(filepath, resource_type="auto", folder="resumes"):
 # ─── Flask App Setup ──────────────────────────────────────
 app = Flask(__name__)
 # Apply CORS FIRST
+# ─── Apply CORS ─────────────────────────────────────────────────
 CORS(
     app,
     resources={r"/*": {
         "origins": [
-            "http://localhost:5173",
-            "http://127.0.0.1:5173",
-            "https://rag-mag.vercel.app"
-        ]
+            "http://localhost:5173",  # Your local dev server
+            "http://127.0.0.1:5173",  # Another variation of localhost
+            "https://rag-mag.vercel.app"  # Production frontend
+        ],
+        "methods": ["GET", "POST", "PUT", "DELETE", "OPTIONS"],  # Ensure OPTIONS is allowed
+        "allow_headers": ["Content-Type", "Authorization"],  # Ensure relevant headers are allowed
+        "expose_headers": ["Content-Type", "Authorization"],
     }},
     supports_credentials=True,
-    allow_headers=["Content-Type", "Authorization"],
-    expose_headers=["Content-Type", "Authorization"]
 )
 
 basedir = os.path.abspath(os.path.dirname(__file__ + '/../'))
@@ -169,10 +171,10 @@ def jwt_auth_middleware():
 
     # ✅ Allow OPTIONS requests (CORS preflight) without auth
     if request.method == "OPTIONS":
-        print("Skipping JWT check for preflight OPTIONS request")
-        return
-
-
+        # Handle preflight OPTIONS request manually if needed
+        response = jsonify({"message": "CORS preflight passed"})
+        response.status_code = 200
+        return response
 
     path = request.path
 
