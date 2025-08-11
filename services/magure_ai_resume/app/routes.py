@@ -321,6 +321,7 @@ def get_audit_logs():
         print("route data", limit, offset, user_id)
         #service_name = request.args.get("service_name")
 
+
         logs = fetch_audit_logs(limit=limit, offset=offset, user_id=user_id)
 
         if isinstance(logs, dict) and logs.get("error"):
@@ -331,3 +332,135 @@ def get_audit_logs():
 
     except Exception as e:
         return jsonify({"error": str(e)}), 500
+
+
+@api.route("/cvs", methods=["POST"])
+def get_cvs():
+    data = request.get_json() or {}
+    group_name = data.get("group")
+    results = []
+
+    log_audit(
+        service_name="resume_service",
+        action="FETCH_ALLRESUME",
+        user_id=g.get("user_id"),
+        ip_address=get_client_ip(),
+        request_data=group_name,
+        response_data={"message": "All Resumes fetched", "status": "SUCCESS"}
+    )
+
+    # ─── 1. Group Filtering ───
+    if group_name and group_name.lower() not in ["null", "undefined", ""]:
+        group = Group.query.filter_by(name=group_name).first()
+        if not group:
+            return jsonify([]), 200
+        cvs = UploadedCV.query.filter_by(group_id=group.id).order_by(UploadedCV.upload_time.desc()).all()
+    else:
+        cvs = UploadedCV.query.order_by(UploadedCV.upload_time.desc()).all()
+
+    # ─── 2. Get JsonData for all CVs ───
+    json_map = {
+        jd.cv_id: jd
+        for jd in JsonData.query.filter(JsonData.cv_id.in_([cv.id for cv in cvs])).all()
+    }
+
+    for cv in cvs:
+        jd = json_map.get(cv.id)
+        if not jd:
+            continue
+
+        # ─── 3. Base CV Data ───
+        cv_dict = cv.as_dict()
+        cv_dict.update({
+            "name": jd.data.get("name", "Data not found") if jd.data else "Data not found",
+            "job_profile": jd.data.get("job_profile", "Data not found") if jd.data else "Data not found",
+            "total_experience": jd.total_experience or "Data not found"
+        })
+
+        # ─── 4. Filter by CV ID ───
+        if "cv_id" in data:
+            if int(data["cv_id"]) != cv.id:
+                continue
+
+        # ─── 5. Filter by Experience Range ───
+        if "experience" in data:
+            try:
+                exp_str = jd.total_experience or ""
+                exp = parse_experience_to_years(exp_str)
+                min_exp, max_exp = float(data["experience"][0]), float(data["experience"][1])
+                if not (min_exp <= exp <= max_exp):
+                    continue
+            except Exception as e:
+                logger.warning(f"Experience parsing failed for CV {cv.id}: {e}")
+                continue
+
+        # ─── 6. Filter by Skills ───
+        if "skills" in data:
+            required_skills = set([s.strip().lower() for s in data["skills"]])
+            candidate_skills = set([s.strip().lower() for s in jd.skills or []])
+            matched_skills = required_skills & candidate_skills
+
+            cv_dict["total_skills_candidate"] = len(candidate_skills)
+            cv_dict["matched_skills_count"] = len(matched_skills)
+
+            if not matched_skills:
+                continue
+
+        # ─── 7. Filter by Location ───
+        if "location" in data:
+            candidate_location = (jd.location or "").strip().lower()
+            if candidate_location != data["location"].strip().lower():
+                continue
+
+        # ─── 8. Filter by Education ───
+        if "education" in data:
+            edu_required = data["education"].strip().lower()
+            edu_list = [e.strip().lower() for e in jd.education or []]
+            if edu_required not in edu_list:
+                continue
+
+        # ─── 9. Filter by Availability ───
+        if "availability" in data:
+            if not jd.last_working_date:
+                continue  # Currently working → exclude
+
+            try:
+                lwd = jd.last_working_date
+                if isinstance(lwd, str):
+                    lwd = datetime.fromisoformat(lwd)
+
+                today = datetime.utcnow()
+                delta_days = (today - lwd).days
+                avail_req = data["availability"].strip().lower()
+
+                if avail_req == "immediately":
+                    if lwd > today:
+                        continue
+                elif avail_req == "15 days" and delta_days < -15:
+                    continue
+                elif avail_req == "30 days" and delta_days < -30:
+                    continue
+                elif avail_req == "45 days" and delta_days < -45:
+                    continue
+                else:
+                    pass  # Unknown availability term will fall through
+            except Exception as e:
+                logger.warning(f"Availability filter failed for CV {cv.id}: {e}")
+                continue
+
+        # ─── 10. Calculate Days Available ───
+        if jd.last_working_date:
+            try:
+                lwd = jd.last_working_date
+                if isinstance(lwd, str):
+                    lwd = datetime.fromisoformat(lwd)
+                cv_dict["days_available"] = (datetime.utcnow() - lwd).days
+            except Exception:
+                cv_dict["days_available"] = "Invalid date format"
+        else:
+            cv_dict["days_available"] = "Currently Working"
+
+        results.append(cv_dict)
+
+    return jsonify(results), 200
+
