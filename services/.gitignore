@@ -6,3 +6,9 @@ pitch-analyzer/uploads
 magure_ai_resume/app/__pycache__/
 magure_ai_resume/app/*.pyc
 *.pyc
+
+# Python cache
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
